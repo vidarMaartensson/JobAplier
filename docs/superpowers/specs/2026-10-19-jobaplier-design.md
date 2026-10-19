@@ -69,11 +69,39 @@ kraschar (`KeepAlive`). All data lagras i SQLite (`data/jobaplier.db`).
 | PDF ut | WeasyPrint (personligt brev → PDF) |
 | Webbläsare | Playwright (Chromium, synligt läge, persistent profil) |
 | Mejl | Gmail API (google-api-python-client), OAuth |
-| AI | Anthropic Python SDK. `claude-haiku-5-5` för poängsättning, `claude-sonnet-5-5` för personliga brev och CV-profil |
+| AI | Utbytbar backend (se 3.2). Standard: Claude Code CLI i headless-läge via användarens Claude-prenumeration. Alternativ: Anthropic Python SDK med API-nyckel. `claude-haiku-5-5` för poängsättning, `claude-sonnet-5-5` för personliga brev och CV-profil |
 | Validering | Pydantic |
 | Test | pytest, pytest-playwright |
 
-### 3.2 Projektstruktur
+### 3.2 AI-backend
+
+All AI går via ett gemensamt gränssnitt (`AIClient.complete(...)` som returnerar
+ett validerat Pydantic-objekt). Två implementationer väljs med `ai.backend` i
+`config.yaml`:
+
+- **`claude_code`** (standard): anropar den lokalt installerade Claude Code CLI:n
+  i headless-läge och använder användarens inloggade Claude-prenumeration. Ingen
+  API-nyckel behövs. Anropet isoleras från användarens egna Claude Code-inställningar:
+
+  ```
+  claude -p --model <modell-id> --effort <nivå> --output-format json
+         --json-schema '<schema>' --system-prompt '<system>'
+         --tools "" --no-session-persistence --setting-sources ""
+         --strict-mcp-config --disable-slash-commands
+  ```
+
+  Prompten skickas på stdin. Svaret är JSON där `structured_output` innehåller
+  det schemavaliderade objektet, och `is_error`/`api_error_status` anger fel.
+  Provkört 2026-10-19 med Claude Code 2.1.303: ungefär 2 sekunder per anrop.
+  Användningen räknas mot prenumerationens gränser, och ingen kostnad per anrop
+  bokförs. Det här är för personligt bruk på egen dator; om tjänsten någon gång
+  ska användas av andra ska `api`-backenden användas.
+- **`api`**: Anthropic Python SDK (`client.messages.parse(..., output_format=Schema)`)
+  med `ANTHROPIC_API_KEY`. Kostnad per anrop bokförs och månadstaket gäller.
+
+`--bare` används inte, eftersom det läget bara accepterar API-nyckel.
+
+### 3.3 Projektstruktur
 
 ```
 JobAplier/
@@ -302,11 +330,15 @@ otillåtna övergångar.
   länk för att logga in igen.
 - **Ändrade sajter / tolkningsfel:** jobbet sparas med det som finns och
   `incomplete=True`, i stället för att försvinna.
-- **Claude-API:** nya försök med backoff vid fel och rate limit. Ogiltigt svar
+- **AI:** nya försök med backoff vid fel och rate limit. Ogiltigt svar
   ger ett nytt försök, och därefter manuell granskning. Jobbet ligger kvar som
   `new` om poängsättningen inte gick att genomföra, och tas med i nästa körning.
-- **AI-kostnadstak** (`ai_monthly_budget_usd`): när taket nås pausas AI-anrop och
-  dashboarden visar en banner.
+  Med `claude_code`: om CLI:n saknas, inte är inloggad eller avbryts efter
+  timeout (180 s) blir det ett AI-fel med tydligt meddelande.
+- **AI-tak:** med `api` gäller `ai_monthly_budget_usd`; när taket nås pausas
+  AI-anrop och dashboarden visar en banner. Med `claude_code` ger nådd
+  användningsgräns för prenumerationen (`api_error_status` 429) samma paus och
+  banner fram till nästa körning.
 - **Utskick:** Gmail-fel ger `failed` med felmeddelande. Krasch i Playwright ger
   `draft_ready` igen.
 - **Missade körningar:** APScheduler kör en missad körning när datorn vaknar
@@ -316,7 +348,7 @@ otillåtna övergångar.
 
 ## 7. Konfiguration
 
-`.env` (gitignorerad): `ANTHROPIC_API_KEY`.
+`.env` (gitignorerad): `ANTHROPIC_API_KEY` (behövs bara med `ai.backend: api`).
 
 `data/config.yaml` (gitignorerad, exempel i `config.example.yaml`):
 
@@ -345,7 +377,10 @@ schedule: ["08:00", "12:00", "17:00"]
 apply:
   dry_run: true
   max_emails_per_day: 10
-ai_monthly_budget_usd: 10
+ai:
+  backend: claude_code      # claude_code | api
+  claude_bin: claude        # sökväg till Claude Code CLI
+ai_monthly_budget_usd: 10   # gäller bara backend api
 ```
 
 ## 8. Testning
@@ -377,5 +412,8 @@ Testdriven utveckling med pytest. Inga nätverksanrop i testsviten.
 - `launchd/se.jobaplier.plist` installeras i `~/Library/LaunchAgents/` och startar
   tjänsten vid inloggning med `KeepAlive`. Loggar till `data/logs/`.
 - Första start: tjänsten kontrollerar att `data/cv.pdf`, `data/config.yaml`,
-  `ANTHROPIC_API_KEY` och Gmail-OAuth finns, och visar annars en
-  installationssida med det som saknas.
+  AI-backenden (Claude Code CLI hittas, eller `ANTHROPIC_API_KEY` finns) och
+  Gmail-OAuth finns, och visar annars en installationssida med det som saknas.
+- launchd-agenten får `PATH` satt så att Claude Code CLI hittas
+  (t.ex. `/opt/homebrew/bin`), och körs i användarens session så att
+  Claude Codes inloggning i nyckelringen är åtkomlig.

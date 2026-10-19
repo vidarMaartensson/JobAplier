@@ -4,16 +4,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, col, select
 
 from jobaplier.ai import AIError, monthly_spend
-from jobaplier.apply.service import STATUS_LABELS, AlreadyHandled, NoAutoApply
+from jobaplier.apply.service import STATUS_LABELS, AlreadyHandled
 from jobaplier.models import ApplyMethod, Job, JobSource, JobStatus, Run
 from jobaplier.pipeline.run import RunInProgress
 from jobaplier.profile.cv import CVMissing, CVUnreadable
+from jobaplier.sources.linkedin_links import (
+    MAX_LINKS,
+    LinkedInLinksSource,
+    TooManyLinks,
+    parse_linkedin_links,
+)
 from jobaplier.web.state import AppState
 
 router = APIRouter()
@@ -28,7 +34,9 @@ FLASH = {
 # Jobb mitt i ansökningsflödet visas överst i standardlistan, oavsett tröskel.
 ONGOING_STATUSES = (JobStatus.draft_ready, JobStatus.submitting, JobStatus.failed)
 NOT_FOUND = "Jobbet finns inte"
-NO_AUTO_APPLY = "Det här jobbet har ingen automatisk ansökningsväg"
+IN_PROGRESS = "En sökning pågår redan – försök igen om en stund"
+NO_LINKS = "Inga LinkedIn-jobblänkar hittades"
+MAX_REJECTED_SHOWN = 10
 APPLY_METHOD_LABELS = {
     ApplyMethod.email: "Mejl",
     ApplyMethod.form: "Formulär",
@@ -65,7 +73,6 @@ def _render(request: Request, name: str, context: dict, status_code: int = 200) 
     context = {
         "status_labels": STATUS_LABELS,
         "method_labels": APPLY_METHOD_LABELS,
-        "auto_methods": (ApplyMethod.email, ApplyMethod.form),
         **context,
     }
     return _templates(request).TemplateResponse(request, name, context, status_code=status_code)
@@ -124,13 +131,64 @@ def _not_found() -> HTTPException:
 # --- lista ----------------------------------------------------------------------------
 
 
-@router.get("/")
-def job_list(
+def _links(count: int) -> str:
+    return f"{count} länk" if count == 1 else f"{count} länkar"
+
+
+def _import_flash(n: str, known: str, again: str) -> str | None:
+    """`n` nya länkar, `known` som redan fanns, varav `again` ofullständiga som hämtas igen."""
+    try:
+        added, existing, refetched = int(n), int(known or "0"), int(again or "0")
+    except ValueError:
+        return None
+    if min(added, existing, refetched) < 0 or refetched > existing:
+        return None
+    if not 1 <= added + existing <= MAX_LINKS:
+        return None
+    parts = []
+    if added:
+        parts.append(f"{_links(added)} lades till – poängsätts nu")
+    if existing:
+        part = f"{_links(existing)} fanns redan"
+        if refetched:
+            ads = "ofullständig annons" if refetched == 1 else "ofullständiga annonser"
+            part += f" – {refetched} {ads} hämtas igen"
+        parts.append(part)
+    return ". ".join(parts)
+
+
+def _flash(msg: str, n: str, known: str = "", again: str = "") -> str | None:
+    if msg == "imported":
+        return _import_flash(n, known, again)
+    return FLASH.get(msg)
+
+
+@dataclass
+class ImportForm:
+    """Det som visas under importrutan när den renderas om efter ett fel."""
+
+    text: str = ""
+    error: str | None = None
+    rejected: list[str] = field(default_factory=list)
+
+    @property
+    def rejected_shown(self) -> list[str]:
+        return self.rejected[:MAX_REJECTED_SHOWN]
+
+    @property
+    def rejected_more(self) -> int:
+        return max(0, len(self.rejected) - MAX_REJECTED_SHOWN)
+
+
+def _render_list(
     request: Request,
+    *,
     more: str = "",
     status: str = "",
     source: str = "",
-    msg: str = "",
+    flash: str | None = None,
+    import_form: ImportForm | None = None,
+    status_code: int = 200,
 ) -> Response:
     state = _state(request)
     threshold = state.config().scoring.threshold
@@ -170,7 +228,9 @@ def job_list(
             "rows": rows,
             "ongoing": ongoing,
             "banners": _banners(state),
-            "flash": FLASH.get(msg),
+            "flash": flash,
+            "import_form": import_form or ImportForm(),
+            "max_links": MAX_LINKS,
             "threshold": threshold,
             "more": show_all,
             "status": wanted.value if wanted else "",
@@ -178,6 +238,23 @@ def job_list(
             "all_sources": all_sources,
             "all_statuses": list(JobStatus),
         },
+        status_code=status_code,
+    )
+
+
+@router.get("/")
+def job_list(
+    request: Request,
+    more: str = "",
+    status: str = "",
+    source: str = "",
+    msg: str = "",
+    n: str = "",
+    known: str = "",
+    again: str = "",
+) -> Response:
+    return _render_list(
+        request, more=more, status=status, source=source, flash=_flash(msg, n, known, again)
     )
 
 
@@ -238,19 +315,13 @@ def dismiss(request: Request, job_id: int) -> Response:
 
 @router.post("/jobs/{job_id}/apply")
 def apply(request: Request, job_id: int) -> Response:
+    """Skriver brev och CV (ansökningspaketet) för alla ansökningssätt."""
     state = _state(request)
-    with Session(state.engine) as session:
-        job = session.get(Job, job_id)
-        if job is None:
-            raise _not_found()
-        method = job.apply_method
-    if method not in (ApplyMethod.email, ApplyMethod.form):
-        return _respond(request, job_id, NO_AUTO_APPLY, "handled")
     try:
         state.service.start_draft(job_id)
     except LookupError:
         raise _not_found() from None
-    except (AlreadyHandled, NoAutoApply) as exc:
+    except AlreadyHandled as exc:
         return _respond(request, job_id, str(exc), "handled")
     except (AIError, CVMissing, CVUnreadable) as exc:
         return _respond(request, job_id, f"Kunde inte skriva brevet: {exc}", "no_letter")
@@ -270,3 +341,50 @@ def run_now(request: Request) -> Response:
     except RunInProgress:
         return RedirectResponse("/?msg=running", status_code=303)
     return RedirectResponse("/?msg=started", status_code=303)
+
+
+# --- Importera LinkedIn-länkar ----------------------------------------------------------
+
+
+@router.post("/import/linkedin")
+def import_linkedin(request: Request, links: str = Form("")) -> Response:
+    def again(error: str, status_code: int, rejected: list[str] | None = None) -> Response:
+        form = ImportForm(text=links, error=error, rejected=rejected or [])
+        return _render_list(request, import_form=form, status_code=status_code)
+
+    try:
+        ids, rejected = parse_linkedin_links(links)
+    except TooManyLinks as exc:
+        return again(str(exc), 400)
+    if not ids:
+        return again(NO_LINKS, 400, rejected)
+    state = _state(request)
+    known = _known_linkedin_jobs(state, ids)
+    # Kända jobb hämtas bara igen om sidan inte gick att läsa förra gången.
+    fetch = [i for i in ids if i not in known or known[i]]
+    if fetch:
+        try:
+            state.import_links(fetch)
+        except RunInProgress:
+            return again(IN_PROGRESS, 409, rejected)
+    added, refetched = len(ids) - len(known), sum(known.values())
+    # Importerade jobb visas oavsett poäng.
+    return RedirectResponse(
+        f"/?source={LinkedInLinksSource.name}&more=1&msg=imported"
+        f"&n={added}&known={len(known)}&again={refetched}",
+        status_code=303,
+    )
+
+
+def _known_linkedin_jobs(state: AppState, ids: list[str]) -> dict[str, bool]:
+    """Jobb-id:n bland `ids` som redan importerats, och om jobbet är ofullständigt."""
+    with Session(state.engine) as session:
+        rows = session.exec(
+            select(JobSource.external_id, Job.incomplete)
+            .join(Job, col(Job.id) == JobSource.job_id)
+            .where(
+                JobSource.source == LinkedInLinksSource.name,
+                col(JobSource.external_id).in_(ids),
+            )
+        )
+        return dict(rows.all())

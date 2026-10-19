@@ -7,7 +7,7 @@ from sqlmodel import select
 from jobaplier.ai import AIError, BudgetExceeded
 from jobaplier.config import Preferences
 from jobaplier.db import session_scope
-from jobaplier.models import ApplyMethod, Job, JobStatus, Run
+from jobaplier.models import ApplyMethod, Job, JobSource, JobStatus, Run
 from jobaplier.pipeline import run as run_module
 from jobaplier.pipeline.run import RunInProgress, run_pipeline
 from jobaplier.pipeline.scoring import ScoreResult
@@ -115,6 +115,121 @@ def test_happy_path(engine, cv):
         assert (job.score, job.score_reasons) == (80, "Bra match.")
         php = session.exec(select(Job).where(Job.title == "PHP-utvecklare")).one()
         assert php.filter_reason and php.score is None
+
+
+def test_skip_filter_source_bypasses_hard_filter(engine, cv):
+    class PickedSource(FakeSource):
+        skip_filter = True
+
+    picked = PickedSource("picked", [raw("picked", "1", "PHP-utvecklare")])
+    other = FakeSource("other", [raw("other", "2", "PHP-konsult", company="Annat AB")])
+
+    run = go(engine, [picked, other], make_ai([score(70)]), cv, Preferences(exclude_keywords=["php"]))
+
+    assert statuses(engine) == {
+        "PHP-utvecklare": JobStatus.scored,
+        "PHP-konsult": JobStatus.filtered,
+    }
+    assert run.stats_json["filtered"] == 1
+    assert run.stats_json["scored"] == 1
+
+
+class PickedSource(FakeSource):
+    """Jobb som användaren valt själv (som LinkedIn-importen)."""
+
+    skip_filter = True
+
+
+def unreadable(source: str, ext: str) -> RawJob:
+    """Som LinkedIn-importen när sidan inte gick att läsa."""
+    return raw(source, ext, f"LinkedIn-jobb {ext}", company="Okänt", description="",
+               incomplete=True)
+
+
+def job_by_ext(engine, source: str, ext: str) -> Job:
+    with session_scope(engine) as session:
+        job = session.exec(
+            select(Job)
+            .join(JobSource, JobSource.job_id == Job.id)
+            .where(JobSource.source == source, JobSource.external_id == ext)
+        ).one()
+        session.expunge(job)
+        return job
+
+
+def set_status(engine, job_id: int, status: JobStatus, **values) -> None:
+    with session_scope(engine) as session:
+        job = session.get(Job, job_id)
+        job.status = status
+        for key, value in values.items():
+            setattr(job, key, value)
+
+
+def test_refetched_incomplete_job_is_updated_and_scored_again(engine, cv):
+    prefs = Preferences(exclude_keywords=["php"])
+    go(engine, [PickedSource("picked", [unreadable("picked", "1")])], make_ai([score(30)]), cv, prefs)
+    assert job_by_ext(engine, "picked", "1").score == 30
+
+    complete = raw("picked", "1", "PHP-utvecklare", company="Acme", description="Hela annonsen")
+    ai = make_ai([score(85)])
+    run = go(engine, [PickedSource("picked", [complete])], ai, cv, prefs)
+
+    job = job_by_ext(engine, "picked", "1")
+    assert (job.title, job.company, job.description) == ("PHP-utvecklare", "Acme", "Hela annonsen")
+    assert job.incomplete is False
+    assert (job.status, job.score) == (JobStatus.scored, 85)  # filtret hoppas över
+    assert "Hela annonsen" in ai.calls[-1]["prompt"]
+    assert run.stats_json["new"] == 0
+
+
+def test_refetched_incomplete_filtered_job_from_picked_source_is_scored(engine, cv):
+    go(engine, [PickedSource("picked", [unreadable("picked", "1")])], make_ai([score()]), cv)
+    job_id = job_by_ext(engine, "picked", "1").id
+    set_status(engine, job_id, JobStatus.filtered, filter_reason="Utesluten", score=None)
+
+    complete = raw("picked", "1", "PHP-utvecklare", description="Hela annonsen")
+    go(engine, [PickedSource("picked", [complete])], make_ai([score(75)]), cv,
+       Preferences(exclude_keywords=["php"]))
+
+    job = job_by_ext(engine, "picked", "1")
+    assert (job.status, job.score, job.filter_reason) == (JobStatus.scored, 75, None)
+
+
+def test_refetched_incomplete_job_from_other_source_is_filtered_again(engine, cv):
+    go(engine, [FakeSource("other", [unreadable("other", "1")])], make_ai([score(30)]), cv)
+
+    complete = raw("other", "1", "PHP-utvecklare", description="Hela annonsen")
+    ai = make_ai([])
+    go(engine, [FakeSource("other", [complete])], ai, cv, Preferences(exclude_keywords=["php"]))
+
+    job = job_by_ext(engine, "other", "1")
+    assert job.status == JobStatus.filtered
+    assert job.filter_reason and job.score is None
+    assert ai.calls == []  # inte poängsatt (profilen är redan byggd)
+
+
+def test_refetched_incomplete_filtered_job_from_other_source_stays_filtered(engine, cv):
+    go(engine, [FakeSource("other", [unreadable("other", "1")])], make_ai([score()]), cv)
+    job_id = job_by_ext(engine, "other", "1").id
+    set_status(engine, job_id, JobStatus.filtered, filter_reason="Utesluten", score=None)
+
+    go(engine, [FakeSource("other", [raw("other", "1", "Utvecklare")])], make_ai([]), cv)
+
+    job = job_by_ext(engine, "other", "1")
+    assert (job.title, job.status, job.filter_reason) == ("Utvecklare", JobStatus.filtered, "Utesluten")
+
+
+def test_refetched_incomplete_job_in_apply_flow_keeps_status(engine, cv):
+    go(engine, [PickedSource("picked", [unreadable("picked", "1")])], make_ai([score(30)]), cv)
+    job_id = job_by_ext(engine, "picked", "1").id
+    set_status(engine, job_id, JobStatus.draft_ready)
+
+    complete = raw("picked", "1", "Utvecklare", description="Hela annonsen")
+    go(engine, [PickedSource("picked", [complete])], make_ai([]), cv)
+
+    job = job_by_ext(engine, "picked", "1")
+    assert (job.title, job.incomplete) == ("Utvecklare", False)
+    assert (job.status, job.score) == (JobStatus.draft_ready, 30)
 
 
 def test_failing_source_does_not_stop_others(engine, cv):

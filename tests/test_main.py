@@ -1,45 +1,48 @@
+import shutil
 import threading
 from datetime import datetime
+from pathlib import Path
 
 import pytest
-from fakes import FakeGmail
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from jobaplier.ai import AIError
+from jobaplier.apply.form import VarbiAdapter
+from jobaplier.apply.tailor import TailoredCV, TailoredExperience
 from jobaplier.config import CareerSite, Config, ProfileInfo, Toggle, save_config
 from jobaplier.db import init_db, make_engine, session_scope
-from jobaplier.gmail import GmailAuthError
 from jobaplier.main import (
-    EMAIL_INTERRUPTED,
-    LINKEDIN_NO_GMAIL,
     ConfigHolder,
     ConfiguredAI,
-    LazyGmail,
     Runner,
     build_runtime,
     build_sources,
     build_state,
     create_production_app,
-    sweep_interrupted_emails,
 )
 from jobaplier.models import (
     Application,
     ApplicationStatus,
     ApplyMethod,
+    CVDocumentRecord,
+    CVDocumentWarnings,
     Channel,
+    Draft,
     Job,
     JobStatus,
     Run,
+    TailoredCVRecord,
 )
 from jobaplier.pipeline.run import RunInProgress
-from jobaplier.sources.base import SourceError
+from jobaplier.profile.cv import cv_file_hash, extract_cv_text
+from jobaplier.profile.cv_document import CVDocument, Experience
 from jobaplier.sources.careers.greenhouse import GreenhouseSource
 from jobaplier.sources.careers.teamtailor import TeamtailorSource
 from jobaplier.sources.http import make_http_client
-from jobaplier.sources.linkedin_alerts import LinkedInAlertsSource
+from jobaplier.sources.linkedin_links import LinkedInLinksSource
 from jobaplier.sources.platsbanken import PlatsbankenSource
-from jobaplier.web.setup import CONFIG_MISSING, CV_MISSING, GMAIL_MISSING
+from jobaplier.web.setup import CONFIG_MISSING, CV_MISSING
 
 LOCAL = "http://127.0.0.1:8000"
 
@@ -80,50 +83,25 @@ def _config(**sources) -> Config:
 def test_build_sources_respects_toggles(paths, http):
     config = _config(
         platsbanken=Toggle(enabled=False),
-        linkedin_alerts=Toggle(enabled=False),
         careers=[
             CareerSite(type="greenhouse", company="Acme", id="acme"),
             CareerSite(type="teamtailor", company="Exempel AB", id="exempel"),
         ],
     )
 
-    sources = build_sources(config, paths, http)
+    sources = build_sources(config, http)
 
     assert not any(isinstance(s, PlatsbankenSource) for s in sources)
     assert [type(s) for s in sources] == [GreenhouseSource, TeamtailorSource]
 
 
 def test_build_sources_platsbanken_enabled(paths, http):
-    config = _config(linkedin_alerts=Toggle(enabled=False))
+    config = _config()
 
-    sources = build_sources(config, paths, http)
+    sources = build_sources(config, http)
 
     assert [type(s) for s in sources] == [PlatsbankenSource]
     assert sources[0].prefs is config.preferences
-
-
-def test_build_sources_linkedin_without_gmail_token_reports_error(paths, http, caplog):
-    config = _config(platsbanken=Toggle(enabled=False))
-
-    sources = build_sources(config, paths, http)
-
-    assert [s.name for s in sources] == ["linkedin_alerts"]
-    assert not isinstance(sources[0], LinkedInAlertsSource)
-    with pytest.raises(SourceError) as exc_info:
-        sources[0].fetch(None)
-    assert str(exc_info.value) == LINKEDIN_NO_GMAIL
-    assert "LinkedIn" in caplog.text
-
-
-def test_build_sources_linkedin_with_gmail_token(paths, http):
-    paths.gmail_token.write_text("{}")
-    gmail = FakeGmail()
-    config = _config(platsbanken=Toggle(enabled=False))
-
-    sources = build_sources(config, paths, http, gmail=gmail)
-
-    assert [type(s) for s in sources] == [LinkedInAlertsSource]
-    assert sources[0].gmail is gmail
 
 
 # --- start utan installation -------------------------------------------------------
@@ -138,7 +116,7 @@ def test_build_state_without_setup_shows_setup_page(tmp_path):
         missing = state.setup_missing()
         assert CV_MISSING in missing
         assert CONFIG_MISSING in missing
-        assert GMAIL_MISSING in missing
+        assert not any("Gmail" in m for m in missing)
         with pytest.raises(FileNotFoundError):
             state.config()
 
@@ -230,7 +208,9 @@ def _job_and_app(engine, job_id: int) -> tuple[Job, Application]:
         return job, app
 
 
-def test_startup_sweep_fails_interrupted_emails_only(paths, runtimes):
+def test_startup_sweep_leaves_submitting_jobs_alone(paths, runtimes):
+    """Mejlansökningar kan inte längre skickas; gamla rader rörs inte, och formulär i
+    "skickas" väntar på användaren."""
     engine = make_engine(paths.db)
     init_db(engine)
     email_job = _job_with_application(engine, 1, ApplyMethod.email, Channel.email)
@@ -239,36 +219,11 @@ def test_startup_sweep_fails_interrupted_emails_only(paths, runtimes):
 
     runtime = runtimes(paths)
 
-    job, app = _job_and_app(runtime.state.engine, email_job)
-    assert job.status == JobStatus.failed
-    assert app.status == ApplicationStatus.failed
-    assert app.error == EMAIL_INTERRUPTED
-    assert EMAIL_INTERRUPTED == (
-        "Avbröts under utskick – kontrollera Skickat i Gmail innan du försöker igen"
-    )
-    job, app = _job_and_app(runtime.state.engine, form_job)
-    assert job.status == JobStatus.submitting
-    assert app.status == ApplicationStatus.submitting
-    assert app.error is None
-
-
-def test_sweep_is_skipped_when_disabled(paths, runtimes):
-    engine = make_engine(paths.db)
-    init_db(engine)
-    email_job = _job_with_application(engine, 1, ApplyMethod.email, Channel.email)
-    engine.dispose()
-
-    runtime = runtimes(paths, startup_sweep=False)
-
-    job, _app = _job_and_app(runtime.state.engine, email_job)
-    assert job.status == JobStatus.submitting
-
-
-def test_sweep_returns_count(engine):
-    _job_with_application(engine, 1, ApplyMethod.email, Channel.email)
-    _job_with_application(engine, 2, ApplyMethod.email, Channel.email)
-    assert sweep_interrupted_emails(engine) == 2
-    assert sweep_interrupted_emails(engine) == 0
+    for job_id in (email_job, form_job):
+        job, app = _job_and_app(runtime.state.engine, job_id)
+        assert job.status == JobStatus.submitting
+        assert app.status == ApplicationStatus.submitting
+        assert app.error is None
 
 
 def _interrupted_state(paths) -> tuple[int, int, int, int]:
@@ -344,7 +299,7 @@ def test_run_now_without_config_records_failed_run(paths, runtimes):
 
 def test_run_now_without_cv_records_profile_error(paths, runtimes):
     save_config(
-        _config(platsbanken=Toggle(enabled=False), linkedin_alerts=Toggle(enabled=False)),
+        _config(platsbanken=Toggle(enabled=False)),
         paths.config,
     )
     runtime = runtimes(paths)
@@ -362,7 +317,7 @@ def test_runner_rejects_concurrent_runs():
     release = threading.Event()
     triggers: list[str] = []
 
-    def execute(trigger: str) -> None:
+    def execute(trigger: str, sources=None) -> None:
         triggers.append(trigger)
         started.set()
         release.wait(timeout=10)
@@ -383,8 +338,24 @@ def test_runner_rejects_concurrent_runs():
     assert triggers == ["manual", "schedule"]
 
 
+def test_runner_start_passes_given_sources_to_execute():
+    seen: list = []
+
+    def execute(trigger: str, sources=None) -> None:
+        seen.append((trigger, sources))
+
+    runner = Runner(execute)
+    only = [object()]
+    runner.start(sources=only)  # type: ignore[arg-type]
+    runner.join(timeout=10)
+    runner.start()
+    runner.join(timeout=10)
+
+    assert seen == [("manual", only), ("manual", None)]
+
+
 def test_runner_survives_crashing_run(caplog):
-    def execute(trigger: str) -> None:
+    def execute(trigger: str, sources=None) -> None:
         raise RuntimeError("trasig")
 
     runner = Runner(execute)
@@ -397,7 +368,248 @@ def test_runner_survives_crashing_run(caplog):
     runner.join(timeout=10)
 
 
-# --- AI och Gmail skapas när de behövs ----------------------------------------------
+# --- import av LinkedIn-länkar ---------------------------------------------------------
+
+
+class _PipelineRecorder:
+    """Ersätter `run_pipeline`: sparar källorna och kan hålla körningen igång."""
+
+    def __init__(self, block: bool = False) -> None:
+        self.sources: list[list] = []
+        self.started = threading.Event()
+        self.release = threading.Event()
+        if not block:
+            self.release.set()
+
+    def __call__(self, engine, sources, prefs, ai, cv_path, trigger):
+        self.sources.append(list(sources))
+        self.started.set()
+        self.release.wait(timeout=10)
+        return Run(started_at=datetime(2026, 10, 19, 8, 0), trigger=trigger)
+
+
+@pytest.fixture
+def pipeline(monkeypatch):
+    """Riktig `execute_run` men utan AI-backend och utan att källorna hämtas."""
+    monkeypatch.setattr(ConfiguredAI, "current", lambda self: object())
+    recorder = _PipelineRecorder()
+    monkeypatch.setattr("jobaplier.main.run_pipeline", recorder)
+    return recorder
+
+
+def test_import_links_runs_only_linkedin_source(paths, runtimes, pipeline):
+    save_config(_config(), paths.config)  # Platsbanken är på
+    runtime = runtimes(paths)
+
+    runtime.state.import_links(["4012345678", "4012345679"])
+    runtime.runner.join(timeout=10)
+    runtime.state.run_now()
+    runtime.runner.join(timeout=10)
+
+    [[imported], scheduled] = pipeline.sources
+    assert isinstance(imported, LinkedInLinksSource)
+    assert imported._job_ids == ["4012345678", "4012345679"]
+    assert [type(s) for s in scheduled] == [PlatsbankenSource]
+
+
+def test_import_links_uses_runner_lock(paths, runtimes, pipeline):
+    save_config(_config(), paths.config)
+    runtime = runtimes(paths)
+    pipeline.release.clear()
+
+    runtime.state.run_now()
+    assert pipeline.started.wait(timeout=10)
+    try:
+        with pytest.raises(RunInProgress):
+            runtime.state.import_links(["4012345678"])
+    finally:
+        pipeline.release.set()
+        runtime.runner.join(timeout=10)
+
+    assert len(pipeline.sources) == 1  # importen startade ingen körning
+
+
+# --- skräddarsytt CV ------------------------------------------------------------------
+
+CV_DOC = CVDocument(
+    name="Jane Doe",
+    experience=[
+        Experience(
+            id="e1",
+            title="Backendutvecklare",
+            employer="Acme",
+            period="2018 – 2024",
+            bullets=["Byggde betalflöden"],
+        )
+    ],
+    skills=["Python"],
+)
+TAILORED = TailoredCV(
+    language="sv",
+    headline="Python-specialist",
+    summary="Anpassad profiltext.",
+    experience=[TailoredExperience(id="e1", bullets=["Skräddarsydd punkt om API:er"])],
+    skills=["Python"],
+    education_order=[],
+)
+
+
+def _install_cv(paths, make_pdf, text: str = "Jane Doe. Backendutvecklare på Acme.") -> None:
+    shutil.copyfile(make_pdf(text), paths.cv)
+
+
+def _cache_cv_document(engine, paths, document_json: dict | None = None) -> None:
+    with session_scope(engine) as session:
+        session.add(
+            CVDocumentRecord(
+                cv_hash=cv_file_hash(paths.cv),
+                document_json=document_json or CV_DOC.model_dump(mode="json"),
+            )
+        )
+
+
+def _draft(engine, paths, *, tailored: bool) -> tuple[Job, Draft]:
+    with session_scope(engine) as session:
+        job = Job(dedupe_key=f"k{tailored}", title="Utvecklare", company="Exempel AB")
+        session.add(job)
+        session.flush()
+        draft = Draft(job_id=job.id, letter_text="Hej!")
+        session.add(draft)
+        session.flush()
+        if tailored:
+            session.add(
+                TailoredCVRecord(
+                    draft_id=draft.id,
+                    cv_hash=cv_file_hash(paths.cv),
+                    tailored_json=TAILORED.model_dump(mode="json"),
+                )
+            )
+        session.flush()
+        session.refresh(job)
+        session.refresh(draft)
+        session.expunge_all()
+        return job, draft
+
+
+@pytest.fixture
+def no_ai(monkeypatch):
+    """Inget riktigt AI-anrop får göras; försök sparas och ger ett fel."""
+    calls: list[dict] = []
+
+    def complete(self, **kwargs):
+        calls.append(kwargs)
+        raise AIError("inget AI i testerna")
+
+    monkeypatch.setattr(ConfiguredAI, "complete", complete)
+    return calls
+
+
+def test_form_applier_gets_cv_provider(paths, runtimes, make_pdf, no_ai):
+    save_config(_config(), paths.config)
+    _install_cv(paths, make_pdf)
+    runtime = runtimes(paths)
+    engine = runtime.state.engine
+    _cache_cv_document(engine, paths)
+    job, draft = _draft(engine, paths, tailored=True)
+    plain_job, plain_draft = _draft(engine, paths, tailored=False)
+
+    path = runtime.form_applier.cv_pdf(job, draft)
+
+    # Samma filnamn som nedladdningen (ruling I3), i en katalog per jobb.
+    assert path == paths.data_dir / "tmp" / str(job.id) / "CV_Test_Testsson_Exempel_AB.pdf"
+    text = extract_cv_text(path)
+    assert "Skräddarsydd punkt om API:er" in text
+    assert "Backendutvecklare" in text and "Acme" in text
+    # Utan skräddarsytt CV laddas originalet upp, under samma sorts namn.
+    plain = runtime.form_applier.cv_pdf(plain_job, plain_draft)
+    assert plain == paths.data_dir / "tmp" / str(plain_job.id) / "CV_Test_Testsson_Exempel_AB.pdf"
+    assert plain.read_bytes() == paths.cv.read_bytes()
+    assert no_ai == []
+
+
+VARBI_FORM = Path(__file__).parent / "fixtures" / "forms" / "varbi.html"
+
+
+class UploadNames(VarbiAdapter):
+    """Varbi-adaptern, som noterar filnamnen som CV- och brevfälten fick."""
+
+    def fill(self, page, applicant):
+        report = super().fill(page, applicant)
+        self.uploaded = [
+            page.eval_on_selector(selector, "e => e.files[0] && e.files[0].name")
+            for selector in ("#attachment_cv", "#attachment_letter")
+        ]
+        return report
+
+
+def test_form_fill_uploads_files_named_like_the_downloads(paths, runtimes, make_pdf, no_ai):
+    save_config(_config(), paths.config)
+    _install_cv(paths, make_pdf)
+    runtime = runtimes(paths)
+    _cache_cv_document(runtime.state.engine, paths)
+    job, draft = _draft(runtime.state.engine, paths, tailored=True)
+    job.apply_form_url = VARBI_FORM.as_uri()
+    spy = UploadNames()
+    applier = runtime.form_applier
+    applier.adapters, applier.headless, applier.allow_file_urls = [spy], True, True
+
+    applier.submit(job, draft)
+
+    assert spy.uploaded == ["CV_Test_Testsson_Exempel_AB.pdf", "Personligt_brev_Exempel_AB.pdf"]
+    assert no_ai == []
+
+
+def test_state_cv_pdf_wired(paths, runtimes, make_pdf, tmp_path, no_ai):
+    save_config(_config(), paths.config)
+    _install_cv(paths, make_pdf)
+    runtime = runtimes(paths)
+    _cache_cv_document(runtime.state.engine, paths)
+    _job, draft = _draft(runtime.state.engine, paths, tailored=True)
+    out = tmp_path / "ut" / "cv.pdf"
+
+    assert runtime.state.cv_pdf(draft.id, out) == (out, True)
+    assert "Python-specialist" in extract_cv_text(out)
+    assert no_ai == []
+
+
+def test_cv_document_none_without_cv(paths, runtimes, no_ai):
+    runtime = runtimes(paths)
+
+    assert runtime.state.cv_document() is None
+    assert no_ai == []
+
+
+def test_cv_warnings_wired(paths, runtimes, make_pdf, no_ai):
+    runtime = runtimes(paths)
+    assert runtime.state.cv_warnings() == []  # inget CV
+    _install_cv(paths, make_pdf)
+    engine = runtime.state.engine
+    _cache_cv_document(engine, paths)
+    with session_scope(engine) as session:
+        record = session.exec(select(CVDocumentRecord)).one()
+        session.add(CVDocumentWarnings(cv_document_id=record.id, warnings_json=["Varning"]))
+
+    assert runtime.state.cv_warnings() == ["Varning"]
+    assert no_ai == []
+
+
+def test_cv_document_is_cache_only(paths, runtimes, make_pdf, no_ai):
+    _install_cv(paths, make_pdf)
+    runtime = runtimes(paths)
+    engine = runtime.state.engine
+
+    assert runtime.state.cv_document() is None  # inget byggs för /cv
+    _cache_cv_document(engine, paths)
+    assert runtime.state.cv_document() == CV_DOC
+
+    _install_cv(paths, make_pdf, "Ett helt annat CV.")
+    assert runtime.state.cv_document() is None  # cachen gäller det gamla CV:t
+    _cache_cv_document(engine, paths, {"experience": "inte en lista"})
+    assert runtime.state.cv_document() is None  # ogiltig rad
+    assert no_ai == []
+
+
+# --- AI skapas när den behövs -------------------------------------------------------
 
 
 class _Recorder:
@@ -427,62 +639,6 @@ def test_configured_ai_follows_config(paths, engine):
     holder.set(changed)
     assert ai.current() == "ai-2"
     assert factory.built == ["claude_code", "api"]
-
-
-def test_lazy_gmail_retries_after_auth_error():
-    created: list[FakeGmail] = []
-    failures = [GmailAuthError("token saknas")]
-
-    def factory() -> FakeGmail:
-        if failures:
-            raise failures.pop()
-        created.append(FakeGmail())
-        return created[-1]
-
-    gmail = LazyGmail(factory)
-    with pytest.raises(GmailAuthError):
-        gmail.search("q")
-    gmail.search("q1")
-    gmail.search("q2")
-    assert len(created) == 1
-    assert created[0].queries == ["q1", "q2"]
-
-    created[0].search = lambda query: (_ for _ in ()).throw(GmailAuthError("utgången"))
-    with pytest.raises(GmailAuthError):
-        gmail.search("q3")
-    gmail.search("q4")  # ny klient läses in från token-filen
-    assert len(created) == 2
-
-
-def test_lazy_gmail_rereads_token_after_refresh_error_in_execute():
-    """Utgången token mitt i processen: nästa anrop läser token-filen igen, så att
-    `jobaplier gmail-login` räcker utan omstart."""
-    from google.auth.exceptions import RefreshError
-
-    from jobaplier.gmail import GoogleGmail
-
-    class _Expired:
-        def users(self):
-            return self
-
-        def messages(self):
-            return self
-
-        def list(self, **_kwargs):
-            return self
-
-        def execute(self):
-            raise RefreshError("invalid_grant: Token has been expired or revoked.")
-
-    fresh = FakeGmail()
-    clients = [GoogleGmail(_Expired()), fresh]
-    gmail = LazyGmail(lambda: clients.pop(0))
-
-    with pytest.raises(GmailAuthError, match="jobaplier gmail-login"):
-        gmail.search("q1")
-    gmail.search("q2")
-    assert clients == []
-    assert fresh.queries == ["q2"]
 
 
 # --- produktionsappen ----------------------------------------------------------------

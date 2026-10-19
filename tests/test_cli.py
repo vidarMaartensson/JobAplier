@@ -14,9 +14,14 @@ from jobaplier.cli import (
 )
 
 
-@pytest.mark.parametrize("command", ["serve", "gmail-login", "run-once", "install-launchd"])
+@pytest.mark.parametrize("command", ["serve", "run-once", "install-launchd"])
 def test_cli_parses_commands(command):
     assert build_parser().parse_args([command]).command == command
+
+
+def test_no_gmail_login_command():
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["gmail-login"])
 
 
 def test_cli_without_command_defaults_to_serve():

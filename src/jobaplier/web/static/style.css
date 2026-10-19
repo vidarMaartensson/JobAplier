@@ -86,6 +86,9 @@ select { font: inherit; padding: 0.35rem; border: 1px solid var(--border); borde
 .banner ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }
 .banner-warn { background: var(--warn-bg); border-color: var(--warn-border); }
 .banner-ai { background: var(--ai-bg); border-color: var(--ai-border); }
+.import-box { margin-bottom: 1rem; }
+.import-box textarea { width: 100%; }
+.import-box .rejected { color: var(--muted); font-size: 0.9rem; }
 .flash { background: #e6f4ea; border: 1px solid #9ccfa8; border-radius: 8px; padding: 0.6rem 1rem; }
 .empty { color: var(--muted); }
 
@@ -156,3 +159,44 @@ ul.todo li { margin-bottom: 0.3rem; }
 @media (max-width: 800px) {
   .two-col { grid-template-columns: 1fr; }
 }
+
+/* --- Ansökningspaketet och CV-sidan --- */
+h3 { font-size: 1rem; margin: 0 0 0.4rem; }
+.package-title { margin: 1.25rem 0 0.6rem; font-size: 1.25rem; }
+.banner-done { background: #e6f4ea; border-color: #9ccfa8; }
+ol.steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+ol.steps > li {
+  counter-increment: step;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+}
+ol.steps > li > h3::before {
+  content: counter(step);
+  display: inline-block;
+  min-width: 1.5rem;
+  margin-right: 0.4rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.85rem;
+  text-align: center;
+}
+ol.steps .banner { margin: 0.4rem 0; }
+ol.steps .actions { margin-top: 0.5rem; }
+.copy-field { display: flex; flex-direction: column; gap: 0.2rem; margin-top: 0.6rem; font-size: 0.85rem; color: var(--muted); }
+.copy-field textarea { color: var(--fg); font-size: 0.95rem; }
+.copy-row { display: flex; gap: 0.5rem; }
+.copy-row input { flex: 1 1 auto; min-width: 0; color: var(--fg); font-size: 0.95rem; }
+.copy-row button { flex: 0 0 auto; font-size: 1rem; }
+textarea[readonly], input[readonly] { background: #fafbfc; }
+.ad-section { margin-top: 1.5rem; }
+.ad-section h2 { margin-bottom: 0.4rem; }
+
+.cv-doc { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin-top: 1rem; }
+.cv-doc h2 { margin: 1.1rem 0 0.4rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; }
+.cv-doc h2.cv-name { margin-top: 0; border: 0; font-size: 1.3rem; }
+.cv-entry { margin-bottom: 0.8rem; }
+.cv-entry h3 { margin: 0; }
+.cv-entry ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }

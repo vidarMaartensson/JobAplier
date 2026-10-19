@@ -4,6 +4,7 @@ import pytest
 from jobaplier.config import CareerSite, Config, load_config
 from jobaplier.db import session_scope
 from jobaplier.models import AICall, Application, ApplicationStatus, Channel
+from jobaplier.profile.cv_document import CVDocument, Education, Experience, OtherSection
 from jobaplier.web.setup import compute_setup_missing
 
 # --- ansökningar ---------------------------------------------------------------------------
@@ -42,10 +43,29 @@ def test_applications_list(client, add_job, engine):
     assert "msg-123" in html
     assert "Formuläret var &lt;trasigt&gt;" in html
     assert f'href="/jobs/{sent}"' in html
+    assert "<th>Torrkörning</th>" in html  # en gammal torrkörning finns
+
+
+def test_applications_hide_dry_run_column_without_dry_runs(client, add_job, engine):
+    job_id = add_job(title="Skickad tjänst")
+    with session_scope(engine) as session:
+        session.add(
+            Application(job_id=job_id, channel=Channel.manual, status=ApplicationStatus.submitted)
+        )
+
+    html = client.get("/applications").text
+
+    assert "Skickad tjänst" in html
+    assert "Torrkörning" not in html
+    assert "<td>Nej</td>" not in html
 
 
 def test_applications_empty(client):
-    assert "Inga ansökningar ännu" in client.get("/applications").text
+    html = client.get("/applications").text
+
+    assert "Inga ansökningar ännu" in html
+    assert "När du markerat en ansökan som skickad dyker den upp här" in html
+    assert "Godkänn ett utkast" not in html
 
 
 # --- körningar ---------------------------------------------------------------------------
@@ -150,7 +170,6 @@ def settings_form(**overrides) -> dict[str, str]:
         "careers": "greenhouse,Exempel,exempel\n\n  lever , Annat AB , annat  \n",
         "threshold": "70",
         "schedule": "07:30\n16:45",
-        "max_emails_per_day": "5",
         "ai_backend": "api",
         "claude_bin": "claude",
         "ai_monthly_budget_usd": "12.5",
@@ -202,6 +221,21 @@ def test_settings_page_shows_current_values(client, config):
     assert "08:00\n12:00\n17:00</textarea>" in html
 
 
+def test_settings_page_has_no_gmail_fields(client):
+    html = client.get("/settings").text
+
+    for removed in ("Torrkörning", "LinkedIn-aviseringar", "max_emails_per_day", "dry_run"):
+        assert removed not in html
+
+
+def test_setup_does_not_require_gmail(paths, config, make_pdf):
+    make_ready(paths, make_pdf)
+    config.ai.claude_bin = "sh"  # finns alltid på PATH
+
+    assert not paths.data_dir.joinpath("gmail_token.json").exists()
+    assert compute_setup_missing(paths, lambda: config, lambda: None) == []
+
+
 def test_settings_roundtrip_writes_yaml(client, state, saved):
     response = client.post("/settings", data=settings_form(), follow_redirects=False)
 
@@ -214,15 +248,12 @@ def test_settings_roundtrip_writes_yaml(client, state, saved):
     assert written.preferences.exclude_companies == ["Dåligt AB"]
     assert written.preferences.remote_ok is True
     assert written.sources.platsbanken.enabled is True
-    assert written.sources.linkedin_alerts.enabled is False  # ikryssad ruta saknas i formuläret
     assert [(c.type, c.company, c.id) for c in written.sources.careers] == [
         ("greenhouse", "Exempel", "exempel"),
         ("lever", "Annat AB", "annat"),
     ]
     assert written.scoring.threshold == 70
     assert written.schedule == ["07:30", "16:45"]
-    assert written.apply.dry_run is False  # rutan var inte ikryssad
-    assert written.apply.max_emails_per_day == 5
     assert written.ai.backend == "api"
     assert written.ai_monthly_budget_usd == 12.5
     assert len(saved) == 1 and saved[0] == written
@@ -287,7 +318,6 @@ def test_settings_validation_error_shown(client, state, saved):
         ({"profile_email": "ingen-snabela"}, "Ogiltig e-postadress"),
         ({"threshold": "många"}, "heltal"),
         ({"threshold": "101"}, "mellan 0 och 100"),
-        ({"max_emails_per_day": "-1"}, "inte vara negativt"),
         ({"ai_monthly_budget_usd": "gratis"}, "tal"),
         ({"ai_monthly_budget_usd": "12,5"}, "använd punkt som decimaltecken"),
         ({"ai_monthly_budget_usd": "nan"}, "ändligt tal"),
@@ -295,7 +325,6 @@ def test_settings_validation_error_shown(client, state, saved):
         ({"ai_monthly_budget_usd": "-inf"}, "ändligt tal"),
         ({"threshold": "nan"}, "heltal"),
         ({"threshold": "inf"}, "heltal"),
-        ({"max_emails_per_day": "nan"}, "heltal"),
         ({"ai_backend": "lokal"}, "Ogiltigt val"),
     ],
 )
@@ -390,7 +419,7 @@ def test_missing_config_file_shows_no_notice(client, state):
 
 @pytest.fixture
 def missing_setup(state):
-    state.setup_missing = lambda: ["CV saknas", "Gmail-inloggning saknas"]
+    state.setup_missing = lambda: ["CV saknas", "AI saknas"]
 
 
 def test_setup_redirect_when_missing(client, missing_setup):
@@ -426,7 +455,7 @@ def test_setup_lists_missing_items(client, missing_setup):
     html = client.get("/setup").text
 
     assert "CV saknas" in html
-    assert "Gmail-inloggning saknas" in html
+    assert "AI saknas" in html
     assert 'href="/settings"' in html
 
 
@@ -447,7 +476,6 @@ def make_ready(paths, make_pdf):
 
     shutil.copy(make_pdf("CV"), paths.cv)
     paths.config.write_text("x", encoding="utf-8")
-    paths.gmail_token.write_text("{}", encoding="utf-8")
 
 
 def test_compute_setup_missing_lists_everything_on_empty_install(paths, monkeypatch):
@@ -455,12 +483,12 @@ def test_compute_setup_missing_lists_everything_on_empty_install(paths, monkeypa
 
     missing = compute_setup_missing(paths, lambda: None, lambda: None)
 
-    assert len(missing) == 4
+    assert len(missing) == 3
     joined = "\n".join(missing)
     assert "data/cv.pdf" in joined
     assert "data/config.yaml" in joined
     assert "Claude Code hittas inte – installera och logga in med `claude`" in joined
-    assert "jobaplier gmail-login" in joined
+    assert "gmail" not in joined.lower()
     assert "ANTHROPIC_API_KEY" not in joined
 
 
@@ -506,3 +534,82 @@ def test_compute_setup_missing_treats_loader_error_as_missing_config(paths, make
 
     assert any("data/config.yaml" in item for item in missing)
 
+
+
+# --- strukturerat CV ------------------------------------------------------------------------
+
+
+def test_cv_page_shows_document(client, cv_document):
+    cv_document.document = CVDocument(
+        name="Jane <Doe>",
+        email="jane@example.se",
+        phone="070-111 22 33",
+        summary="Erfaren backendutvecklare.",
+        experience=[
+            Experience(
+                id="e1",
+                title="Backendutvecklare",
+                employer="Acme & Co",
+                location="Göteborg",
+                period="2018 – 2024",
+                bullets=["Byggde API:er i <Python>"],
+            )
+        ],
+        education=[
+            Education(
+                id="u1", degree="Civilingenjör", school="Chalmers", period="2012 – 2017",
+                details=["Datateknik"],
+            )
+        ],
+        skills=["Python", "SQL"],
+        languages=["Svenska", "Engelska"],
+        other=[OtherSection(heading="Certifikat", items=["AWS"])],
+    )
+
+    response = client.get("/cv")
+
+    assert response.status_code == 200
+    html = response.text
+    assert "Jane &lt;Doe&gt;" in html
+    assert "jane@example.se" in html and "070-111 22 33" in html
+    assert "Erfaren backendutvecklare." in html
+    assert "Backendutvecklare" in html and "Acme &amp; Co" in html
+    assert "Göteborg" in html and "2018 – 2024" in html
+    assert "Byggde API:er i &lt;Python&gt;" in html
+    assert "Civilingenjör" in html and "Chalmers" in html and "Datateknik" in html
+    assert "Python" in html and "SQL" in html
+    assert "Svenska" in html and "Engelska" in html
+    assert "Certifikat" in html and "AWS" in html
+    for heading in ("Profil", "Erfarenhet", "Utbildning", "Kompetenser", "Språk"):
+        assert f">{heading}</h2>" in html
+    assert "Ditt CV har inte lästs ut än" not in html
+
+
+def test_cv_page_shows_fidelity_warnings(client, cv_document, cv_warnings):
+    cv_document.document = CVDocument(name="Jane Doe")
+    cv_warnings.append('Kontrollera i ditt CV: "<Acme>" hittades inte ordagrant i cv.pdf')
+
+    html = client.get("/cv").text
+
+    assert "Kontrollera i ditt CV: &#34;&lt;Acme&gt;&#34; hittades inte ordagrant" in html
+
+
+def test_cv_page_without_fidelity_warnings_has_no_banner(client, cv_document):
+    cv_document.document = CVDocument(name="Jane Doe")
+
+    assert "Kontrollera i ditt CV" not in client.get("/cv").text
+
+
+def test_cv_page_without_document(client, cv_document):
+    response = client.get("/cv")
+
+    assert response.status_code == 200
+    assert (
+        "Ditt CV har inte lästs ut än – det görs när du klickar Ansök på ett jobb "
+        "(eller Försök igen på ett utkast)" in response.text
+    )
+    assert cv_document.calls == 1
+
+
+def test_nav_links_to_cv(client):
+    assert '<a href="/cv">CV</a>' in client.get("/").text

@@ -6,12 +6,13 @@ S = JobStatus
 
 ALLOWED_TRANSITIONS: dict[JobStatus, frozenset[JobStatus]] = {
     S.new: frozenset({S.filtered, S.scored}),
-    S.filtered: frozenset(),
-    S.scored: frozenset({S.dismissed, S.link, S.drafting}),
+    # Tillbaka till `new` när ett ofullständigt jobb hämtats helt och poängsätts igen.
+    S.filtered: frozenset({S.new}),
+    S.scored: frozenset({S.dismissed, S.link, S.drafting, S.new}),
     S.dismissed: frozenset(),
     S.link: frozenset({S.submitted}),
     S.drafting: frozenset({S.draft_ready, S.scored}),
-    S.draft_ready: frozenset({S.approved, S.dismissed}),
+    S.draft_ready: frozenset({S.approved, S.dismissed, S.submitted}),
     S.approved: frozenset({S.submitting}),
     S.submitting: frozenset({S.submitted, S.failed, S.draft_ready}),
     S.submitted: frozenset(),

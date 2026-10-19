@@ -2,7 +2,7 @@ import pytest
 from sqlmodel import Session, select
 
 from jobaplier.models import ApplyMethod, Job, JobSource, JobStatus
-from jobaplier.pipeline.dedupe import dedupe_key, normalize, upsert_raw_jobs
+from jobaplier.pipeline.dedupe import dedupe_key, normalize, refresh_incomplete, upsert_raw_jobs
 from jobaplier.sources.base import ApplyInfo, RawJob
 
 
@@ -226,3 +226,47 @@ def test_apply_method_upgraded_before_apply_flow(engine, status):
         job = session.exec(select(Job)).one()
         assert job.apply_method == ApplyMethod.email
         assert job.apply_email == "a@b.se"
+
+
+# --- ofullständiga jobb som hämtas igen ---------------------------------------------------
+
+
+def incomplete_raw(external_id="9") -> RawJob:
+    r = raw(source="linkedin_links", external_id=external_id, company="Okänt",
+            title=f"LinkedIn-jobb {external_id}")
+    r.description, r.location, r.incomplete = "", None, True
+    return r
+
+
+def test_refresh_incomplete_updates_facts_and_key(engine):
+    with Session(engine) as session:
+        (job,) = upsert_raw_jobs(session, [incomplete_raw()])
+        refreshed = refresh_incomplete(session, [raw(source="linkedin_links", external_id="9")])
+        assert refreshed == [job]
+        assert (job.title, job.company, job.location, job.description) == (
+            "Utvecklare – Backend", "Exempel AB", "Stockholm", "Beskrivning"
+        )
+        assert job.incomplete is False
+        assert job.dedupe_key == dedupe_key("Exempel AB", "Utvecklare – Backend")
+        # Hämtas sidan igen är jobbet inte längre ofullständigt: inget ändras.
+        assert refresh_incomplete(session, [raw(source="linkedin_links", external_id="9")]) == []
+
+
+def test_refresh_incomplete_keeps_key_when_another_job_has_it(engine):
+    with Session(engine) as session:
+        (other,) = upsert_raw_jobs(session, [raw()])  # samma jobb från Platsbanken
+        (job,) = upsert_raw_jobs(session, [incomplete_raw()])
+        old_key = job.dedupe_key
+        refresh_incomplete(session, [raw(source="linkedin_links", external_id="9")])
+        session.flush()
+        assert job.title == "Utvecklare – Backend"
+        assert job.dedupe_key == old_key
+        assert other.dedupe_key == dedupe_key("Exempel AB", "Utvecklare – Backend")
+
+
+def test_refresh_incomplete_ignores_pages_that_still_fail_and_unknown_ids(engine):
+    with Session(engine) as session:
+        (job,) = upsert_raw_jobs(session, [incomplete_raw()])
+        assert refresh_incomplete(session, [incomplete_raw(), raw(external_id="9")]) == []
+        assert job.incomplete is True
+        assert job.title == "LinkedIn-jobb 9"

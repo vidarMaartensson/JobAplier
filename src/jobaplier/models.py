@@ -99,6 +99,30 @@ class ProfileRecord(SQLModel, table=True):
     created_at: NaiveDatetime = Field(default_factory=utcnow)
 
 
+class CVDocumentRecord(SQLModel, table=True):
+    __tablename__ = "cv_documents"
+
+    id: int | None = Field(default=None, primary_key=True)
+    cv_hash: str = Field(index=True)
+    document_json: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(MutableDict.as_mutable(JSON))
+    )
+    created_at: NaiveDatetime = Field(default_factory=utcnow)
+
+
+class CVDocumentWarnings(SQLModel, table=True):
+    """Faktafält i ett CV-dokument som inte hittades ordagrant i CV-filens text."""
+
+    __tablename__ = "cv_document_warnings"
+
+    id: int | None = Field(default=None, primary_key=True)
+    cv_document_id: int = Field(foreign_key="cv_documents.id", unique=True)
+    warnings_json: list[str] = Field(
+        default_factory=list, sa_column=Column(MutableList.as_mutable(JSON))
+    )
+    created_at: NaiveDatetime = Field(default_factory=utcnow)
+
+
 class Draft(SQLModel, table=True):
     __tablename__ = "drafts"
 
@@ -114,6 +138,26 @@ class Draft(SQLModel, table=True):
     created_at: NaiveDatetime = Field(default_factory=utcnow)
 
 
+class TailoredCVRecord(SQLModel, table=True):
+    """Claudes anpassning av CV:t för en utkastversion (`TailoredCV` som JSON).
+
+    `cv_hash` är CV-filen som anpassningen gjordes mot; har filen bytts sedan dess
+    används inte anpassningen."""
+
+    __tablename__ = "tailored_cvs"
+
+    id: int | None = Field(default=None, primary_key=True)
+    draft_id: int = Field(foreign_key="drafts.id", unique=True)
+    cv_hash: str
+    tailored_json: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(MutableDict.as_mutable(JSON))
+    )
+    warnings_json: list[str] = Field(
+        default_factory=list, sa_column=Column(MutableList.as_mutable(JSON))
+    )
+    created_at: NaiveDatetime = Field(default_factory=utcnow)
+
+
 class Application(SQLModel, table=True):
     __tablename__ = "applications"
     __table_args__ = (UniqueConstraint("job_id", "channel"),)
@@ -125,7 +169,7 @@ class Application(SQLModel, table=True):
     status: ApplicationStatus = ApplicationStatus.submitting
     receipt: str | None = None
     error: str | None = None
-    dry_run: bool = True
+    dry_run: bool = False
     submitted_at: NaiveDatetime | None = None
 
 

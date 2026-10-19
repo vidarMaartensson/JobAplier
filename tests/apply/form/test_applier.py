@@ -51,10 +51,10 @@ def test_submit_returns_submitting_with_notes(make_applier, paths: Paths):
     result = applier.submit(make_job(FIXTURE.as_uri()), make_draft())
     assert result.channel == Channel.form
     assert result.status == ApplicationStatus.submitting
-    assert result.dry_run is False
     assert "Löneanspråk" in result.notes
-    # Brevet ligger kvar så att användaren kan ladda upp det i den öppna sidan.
-    assert (paths.data_dir / "tmp" / "letter-7.pdf").is_file()
+    # Brevet ligger kvar så att användaren kan ladda upp det i den öppna sidan, med
+    # samma filnamn som nedladdningen.
+    assert (paths.data_dir / "tmp" / "7" / "Personligt_brev_Exempel_AB.pdf").is_file()
     applier.close()
     applier.close()  # idempotent
 
@@ -89,6 +89,83 @@ def test_error_in_browser_thread_becomes_submit_error(make_applier, tmp_path: Pa
         applier.submit(make_job((tmp_path / "saknas.html").as_uri()), make_draft())
     # Tråden lever vidare och klarar nästa uppdrag.
     assert "Löneanspråk" in applier.submit(make_job(FIXTURE.as_uri()), make_draft()).notes
+
+
+class UploadSpy(GenericAdapter):
+    """GenericAdapter som noterar vilket filnamn CV-fältet fick."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.uploaded_cv: str | None = None
+
+    def fill(self, page, applicant) -> FillReport:
+        report = super().fill(page, applicant)
+        self.uploaded_cv = page.eval_on_selector("#cv", "e => e.files[0] && e.files[0].name")
+        return report
+
+
+def make_spy_applier(config: Config, paths: Paths, **kwargs) -> tuple[FormApplier, UploadSpy]:
+    spy = UploadSpy()
+    applier = FormApplier(
+        lambda: config, paths, [spy], headless=True, allow_file_urls=True, **kwargs
+    )
+    return applier, spy
+
+
+def test_uses_provided_cv_pdf(config: Config, paths: Paths, make_pdf, tmp_path: Path):
+    tailored = tmp_path / "CV_Vidar_Exempel_AB.pdf"
+    shutil.copy(make_pdf("Skräddarsytt CV"), tailored)
+    calls: list[tuple[Job, Draft]] = []
+
+    def provider(job: Job, draft: Draft) -> Path:
+        calls.append((job, draft))
+        return tailored
+
+    applier, spy = make_spy_applier(config, paths, cv_pdf=provider)
+    job, draft = make_job(FIXTURE.as_uri()), make_draft()
+    try:
+        applier.submit(job, draft)
+    finally:
+        applier.close()
+    assert calls == [(job, draft)]
+    assert spy.uploaded_cv == "CV_Vidar_Exempel_AB.pdf"
+
+
+def test_provided_cv_pdf_does_not_need_original_cv(
+    config: Config, paths: Paths, make_pdf, tmp_path: Path
+):
+    paths.cv.unlink()
+    tailored = tmp_path / "CV_Tailored.pdf"
+    shutil.copy(make_pdf("Skräddarsytt CV"), tailored)
+    applier, spy = make_spy_applier(config, paths, cv_pdf=lambda job, draft: tailored)
+    try:
+        applier.submit(make_job(FIXTURE.as_uri()), make_draft())
+    finally:
+        applier.close()
+    assert spy.uploaded_cv == "CV_Tailored.pdf"
+
+
+def test_cv_provider_error_becomes_submit_error(config: Config, paths: Paths):
+    def provider(job: Job, draft: Draft) -> Path:
+        raise RuntimeError("renderingen kraschade")
+
+    applier, _ = make_spy_applier(config, paths, cv_pdf=provider)
+    try:
+        with pytest.raises(SubmitError, match="^Kunde inte skapa CV:t som PDF: renderingen") as ei:
+            applier.submit(make_job(FIXTURE.as_uri()), make_draft())
+    finally:
+        applier.close()
+    assert isinstance(ei.value.__cause__, RuntimeError)
+    assert list(paths.browser.iterdir()) == []  # webbläsaren startades aldrig
+
+
+def test_default_uses_original_cv(config: Config, paths: Paths):
+    applier, spy = make_spy_applier(config, paths)
+    try:
+        applier.submit(make_job(FIXTURE.as_uri()), make_draft())
+    finally:
+        applier.close()
+    assert spy.uploaded_cv == paths.cv.name
 
 
 def test_missing_cv_is_submit_error(make_applier, paths: Paths):

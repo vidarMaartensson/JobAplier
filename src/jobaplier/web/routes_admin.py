@@ -1,4 +1,4 @@
-"""Ansökningshistorik, körningar, inställningar och installationssida."""
+"""Ansökningshistorik, körningar, strukturerat CV, inställningar och installationssida."""
 
 from __future__ import annotations
 
@@ -110,6 +110,18 @@ def runs(request: Request) -> Response:
     return _render(request, "runs.html", context)
 
 
+# --- strukturerat CV ------------------------------------------------------------------------
+
+
+@router.get("/cv")
+def cv_page(request: Request) -> Response:
+    """Så har CV:t tolkats. Fakta i de skräddarsydda CV:na kopieras härifrån."""
+    state = _state(request)
+    cv = state.cv_document()
+    warnings = state.cv_warnings() if cv is not None else []
+    return _render(request, "cv.html", {"cv": cv, "warnings": warnings})
+
+
 # --- inställningar --------------------------------------------------------------------------
 
 # Formulärfältens namn och vilken väg i Config de hör till.
@@ -119,7 +131,6 @@ TEXT_FIELDS = {
     "profile_phone": ("profile", "phone"),
     "profile_linkedin_url": ("profile", "linkedin_url"),
     "threshold": ("scoring", "threshold"),
-    "max_emails_per_day": ("apply", "max_emails_per_day"),
     "ai_backend": ("ai", "backend"),
     "claude_bin": ("ai", "claude_bin"),
     "ai_monthly_budget_usd": ("ai_monthly_budget_usd",),
@@ -136,8 +147,6 @@ LIST_FIELDS = {
 CHECKBOXES = {
     "remote_ok": ("preferences", "remote_ok"),
     "platsbanken": ("sources", "platsbanken", "enabled"),
-    "linkedin_alerts": ("sources", "linkedin_alerts", "enabled"),
-    "dry_run": ("apply", "dry_run"),
 }
 # Pydantic-felens `loc` (de första elementen) → formulärfält.
 LOC_TO_FIELD = {
@@ -274,11 +283,6 @@ def _validate_extra(form: dict[str, Any], errors: dict[str, str]) -> None:
             errors["threshold"] = "Måste vara ett heltal mellan 0 och 100"
     except ValueError:
         pass  # Pydantic rapporterar att det inte är ett heltal
-    try:
-        if int(form["max_emails_per_day"]) < 0:
-            errors["max_emails_per_day"] = "Får inte vara negativt"
-    except ValueError:
-        pass
     try:
         budget = float(form["ai_monthly_budget_usd"])
         if not math.isfinite(budget):

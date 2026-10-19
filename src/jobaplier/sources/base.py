@@ -35,6 +35,9 @@ class RawJob:
 
 
 class Source(Protocol):
+    """En jobbkälla. En källa kan dessutom ha attributet `skip_filter = True`: då
+    poängsätts dess nya jobb utan det hårda filtret (läses med `getattr`, standard `False`)."""
+
     name: str
 
     def fetch(self, since: datetime) -> list[RawJob]: ...

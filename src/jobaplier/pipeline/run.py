@@ -16,7 +16,7 @@ from jobaplier.ai import AIClient, AIError, BudgetExceeded
 from jobaplier.config import Preferences
 from jobaplier.db import session_scope
 from jobaplier.models import ApplyMethod, Job, JobStatus, Run, utcnow
-from jobaplier.pipeline.dedupe import upsert_raw_jobs
+from jobaplier.pipeline.dedupe import refresh_incomplete, upsert_raw_jobs
 from jobaplier.pipeline.filter import hard_filter
 from jobaplier.pipeline.scoring import score_job
 from jobaplier.profile.cv import CVMissing, CVUnreadable, Profile, load_or_build_profile, profile_of
@@ -144,14 +144,18 @@ def _collect(
         with session_scope(engine) as session:
             since = _since(session, run_id, name, now)
             raws = source.fetch(since)
+            refreshed = refresh_incomplete(session, raws)
             created = upsert_raw_jobs(session, raws)
             filtered = 0
+            skip_filter = getattr(source, "skip_filter", False)
             for job in created:
-                reason = hard_filter(job, prefs)
+                reason = None if skip_filter else hard_filter(job, prefs)
                 if reason is not None:
                     job.filter_reason = reason
                     transition(job, JobStatus.filtered)
                     filtered += 1
+            for job in refreshed:
+                filtered += _score_again(job, prefs, skip_filter)
         stats["new"] += len(created)
         stats["filtered"] += filtered
         stats["sources"][name] = {"ok": True, "count": len(raws)}
@@ -161,6 +165,27 @@ def _collect(
     except Exception as exc:  # en trasig källa får inte stoppa övriga
         stats["sources"][name] = {"ok": False, "count": 0}
         errors[name] = f"{type(exc).__name__}: {exc}"
+
+
+_SCORE_AGAIN = (JobStatus.new, JobStatus.scored, JobStatus.filtered)
+
+
+def _score_again(job: Job, prefs: Preferences, skip_filter: bool) -> int:
+    """Ett ofullständigt jobb som nu hämtats helt poängsätts om med hela annonsen, om det
+    inte har gått vidare till ansökan. Ett bortfiltrerat jobb förblir bortfiltrerat,
+    utom från källor som användaren valt själv (`skip_filter`); dem filtreras aldrig.
+    Returnerar 1 om jobbet filtrerades bort nu, annars 0."""
+    if job.status not in _SCORE_AGAIN or (job.status == JobStatus.filtered and not skip_filter):
+        return 0
+    if job.status != JobStatus.new:
+        transition(job, JobStatus.new)
+    job.score = job.score_reasons = job.filter_reason = None
+    reason = None if skip_filter else hard_filter(job, prefs)
+    if reason is None:
+        return 0
+    job.filter_reason = reason
+    transition(job, JobStatus.filtered)
+    return 1
 
 
 def _email_in_ad(email: str, job: Job) -> bool:

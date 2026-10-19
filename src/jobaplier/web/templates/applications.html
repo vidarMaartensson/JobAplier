@@ -3,11 +3,13 @@
 {% block main_class %}wide{% endblock %}
 {% block content %}
 <h1>Ansökningar <span class="count">{{ rows|length }}</span></h1>
+{# Torrkörningar finns bara från äldre versioner med mejlutskick. #}
+{% set dry_runs = rows|selectattr("0.dry_run")|list %}
 {% if rows %}
 <div class="table-wrap">
 <table class="table">
   <thead>
-    <tr><th>Datum</th><th>Jobb</th><th>Kanal</th><th>Status</th><th>Torrkörning</th><th>Kvitto / fel</th></tr>
+    <tr><th>Datum</th><th>Jobb</th><th>Kanal</th><th>Status</th>{% if dry_runs %}<th>Torrkörning</th>{% endif %}<th>Kvitto / fel</th></tr>
   </thead>
   <tbody>
     {% for application, job in rows %}
@@ -16,7 +18,7 @@
       <td><a href="/jobs/{{ job.id }}">{{ job.title }}</a><br><span class="meta">{{ job.company }}</span></td>
       <td>{{ channel_labels[application.channel] }}</td>
       <td>{{ app_status_labels[application.status] }}</td>
-      <td>{{ "Ja" if application.dry_run else "Nej" }}</td>
+      {% if dry_runs %}<td>{{ "Ja" if application.dry_run else "Nej" }}</td>{% endif %}
       <td>
         {% if application.error %}<span class="error">{{ application.error }}</span>
         {% elif application.receipt %}{{ application.receipt }}
@@ -28,6 +30,6 @@
 </table>
 </div>
 {% else %}
-<p class="empty">Inga ansökningar ännu. Godkänn ett utkast så dyker det upp här.</p>
+<p class="empty">Inga ansökningar ännu. När du markerat en ansökan som skickad dyker den upp här.</p>
 {% endif %}
 {% endblock %}

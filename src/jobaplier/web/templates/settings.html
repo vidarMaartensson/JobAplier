@@ -61,7 +61,6 @@
   <fieldset>
     <legend>Källor</legend>
     <label class="check"><input type="checkbox" name="platsbanken"{% if form.platsbanken %} checked{% endif %}> Platsbanken</label>
-    <label class="check"><input type="checkbox" name="linkedin_alerts"{% if form.linkedin_alerts %} checked{% endif %}> LinkedIn-aviseringar (Gmail)</label>
     <label>Karriärsidor
       <textarea name="careers" rows="5" placeholder="greenhouse,Exempel AB,exempel">
 {{ form.careers }}</textarea>
@@ -78,12 +77,6 @@
 {{ form.schedule }}</textarea>
       {{ err("schedule") }}
     </label>
-  </fieldset>
-
-  <fieldset>
-    <legend>Ansökningar</legend>
-    <label class="check"><input type="checkbox" name="dry_run"{% if form.dry_run %} checked{% endif %}> Torrkörning (mejl skickas till dig själv)</label>
-    <label>Max mejl per dag <input type="text" inputmode="numeric" name="max_emails_per_day" value="{{ form.max_emails_per_day }}">{{ err("max_emails_per_day") }}</label>
   </fieldset>
 
   <fieldset>

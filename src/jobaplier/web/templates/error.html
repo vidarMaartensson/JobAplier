@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ heading }} – JobAplier{% endblock %}
+{% block content %}
+<h1>{{ heading }}</h1>
+<p class="error" role="alert">{{ message }}</p>
+<div class="actions">
+  {% if setup_link %}<a class="button primary" href="/setup">Till installationssidan</a>{% endif %}
+  {% if back_url %}<a class="button" href="{{ back_url }}">Tillbaka till utkastet</a>{% endif %}
+  <a href="/">Jobblistan</a>
+</div>
+{% endblock %}

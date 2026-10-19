@@ -24,12 +24,29 @@ def test_example_config_loads():
 def test_defaults(tmp_path):
     config = load_config(write(tmp_path, 'profile: {name: "A", email: "a@x.se"}\n'))
     assert config.scoring.threshold == 60
-    assert config.apply.dry_run is True
-    assert config.apply.max_emails_per_day == 10
     assert config.schedule == ["08:00", "12:00", "17:00"]
     assert config.ai_monthly_budget_usd == 10.0
     assert config.ai.backend == "claude_code"
     assert config.ai.claude_bin == "claude"
+
+
+def test_old_config_with_removed_keys_loads(tmp_path):
+    path = write(
+        tmp_path,
+        'profile: {name: "A", email: "a@x.se"}\n'
+        "sources:\n"
+        "  platsbanken: {enabled: true}\n"
+        "  linkedin_alerts: {enabled: true}\n"
+        "apply: {dry_run: false, max_emails_per_day: 3}\n",
+    )
+    config = load_config(path)  # okända nycklar ignoreras
+    assert config.sources.platsbanken.enabled is True
+
+    out = tmp_path / "saved.yaml"
+    save_config(config, out)
+    text = out.read_text(encoding="utf-8")
+    for removed in ("linkedin_alerts", "dry_run", "max_emails_per_day"):
+        assert removed not in text
 
 
 def test_invalid_backend_raises(tmp_path):
@@ -78,4 +95,3 @@ def test_save_is_atomic_and_leaves_no_temp_files(tmp_path, monkeypatch):
 def test_paths_from_data_dir(tmp_path):
     paths = Paths.from_data_dir(tmp_path)
     assert paths.cv == tmp_path / "cv.pdf"
-    assert paths.gmail_token == tmp_path / "gmail_token.json"

@@ -13,7 +13,6 @@ preferences:
   seniority: ["junior", "mid"]
 sources:
   platsbanken: { enabled: true }
-  linkedin_alerts: { enabled: true }
   # Karriärsidor (teamtailor | greenhouse | lever), t.ex.:
   # careers:
   #   - { type: teamtailor, company: "Exempel AB", id: "exempel" }
@@ -21,9 +20,6 @@ sources:
 scoring:
   threshold: 60
 schedule: ["08:00", "12:00", "17:00"]
-apply:
-  dry_run: true
-  max_emails_per_day: 10
 ai:
   backend: claude_code      # claude_code | api
   claude_bin: claude        # sökväg till Claude Code CLI

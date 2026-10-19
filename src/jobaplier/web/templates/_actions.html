@@ -1,20 +1,18 @@
 {# Knappar för ett jobb. `htmx` = true i listan (raden byts ut), false på detaljsidan. #}
-{% macro actions(job, htmx, method_auto) %}
+{% macro actions(job, htmx) %}
 {% set hx %}{% if htmx %} hx-target="#job-{{ job.id }}" hx-swap="outerHTML" hx-disabled-elt="find button"{% endif %}{% endset %}
 {% if job.status.value == "scored" %}
 <div class="actions">
-  {% if method_auto %}
   <form method="post" action="/jobs/{{ job.id }}/apply"{% if htmx %} hx-post="/jobs/{{ job.id }}/apply"{{ hx }} hx-indicator="#busy-{{ job.id }}"{% endif %}>
     <button class="primary" type="submit">Ansök</button>
   </form>
-  {% endif %}
   <form method="post" action="/jobs/{{ job.id }}/link"{% if htmx %} hx-post="/jobs/{{ job.id }}/link"{{ hx }}{% endif %}>
     <button type="submit">Länk</button>
   </form>
   <form method="post" action="/jobs/{{ job.id }}/dismiss"{% if htmx %} hx-post="/jobs/{{ job.id }}/dismiss"{{ hx }}{% endif %}>
     <button type="submit">Inte intressant</button>
   </form>
-  <span id="busy-{{ job.id }}" class="htmx-indicator">Skriver brev …</span>
+  <span id="busy-{{ job.id }}" class="htmx-indicator">Skriver brev och CV …</span>
 </div>
 {% elif job.status.value == "draft_ready" %}
 <div class="actions">

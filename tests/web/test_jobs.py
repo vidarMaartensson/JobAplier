@@ -101,8 +101,8 @@ def test_invalid_status_falls_back_to_default_list(client, add_job):
     assert "Hög poäng" in response.text
 
 
-def test_no_apply_button_for_unknown(client, add_job):
-    """Review Focus 4: ingen Ansök-knapp, men länk till annonsen."""
+def test_apply_button_for_every_method(client, add_job):
+    """Ansök skapar ett ansökningspaket för alla ansökningssätt, även okända."""
     unknown = add_job(
         title="Okänd väg",
         apply_method=ApplyMethod.unknown,
@@ -110,24 +110,27 @@ def test_no_apply_button_for_unknown(client, add_job):
         url="https://arbetsformedlingen.example/annons/42",
     )
     email = add_job(title="Mejlväg", apply_method=ApplyMethod.email)
+    form = add_job(title="Formulärväg", apply_method=ApplyMethod.form, apply_email=None)
 
     html = client.get("/").text
 
-    assert f"/jobs/{unknown}/apply" not in html
-    assert f"/jobs/{email}/apply" in html
+    for job_id in (unknown, email, form):
+        assert f"/jobs/{job_id}/apply" in html
     assert "https://arbetsformedlingen.example/annons/42" in html
     assert f"/jobs/{unknown}/link" in html
     assert f"/jobs/{unknown}/dismiss" in html
+    assert f'action="/jobs/{unknown}/apply"' in client.get(f"/jobs/{unknown}").text
 
 
-def test_apply_rejected_for_unknown_method(client, add_job, engine):
+def test_apply_allowed_for_unknown_method(client, add_job, engine):
     job_id = add_job(apply_method=ApplyMethod.unknown, apply_email=None)
 
     response = client.post(f"/jobs/{job_id}/apply", headers={"HX-Request": "true"})
 
-    assert "HX-Redirect" not in response.headers
-    assert "ingen automatisk ansökningsväg" in response.text
-    assert status_of(engine, job_id) == JobStatus.scored
+    assert response.headers["HX-Redirect"] == f"/jobs/{job_id}/draft"
+    assert status_of(engine, job_id) == JobStatus.draft_ready
+    page = client.get(f"/jobs/{job_id}/draft").text
+    assert "Ansökningspaket" in page and "Jag har skickat" in page
 
 
 def test_unsafe_url_scheme_is_not_linked(client, add_job):
@@ -377,6 +380,218 @@ def test_run_now_in_progress_message(client, run_now):
     assert "En sökning pågår redan" in response.text
 
 
+# --- importera LinkedIn-länkar -------------------------------------------------------
+
+
+LINK_A = "https://www.linkedin.com/jobs/view/4012345678/"
+LINK_B = "https://se.linkedin.com/jobs/view/backend-developer-at-acme-4012345679"
+
+
+def test_home_has_import_box(client):
+    html = client.get("/").text
+
+    assert "Lägg till jobb från LinkedIn" in html
+    assert '<textarea name="links"' in html
+    assert 'action="/import/linkedin"' in html
+    assert "Lägg till</button>" in html
+
+
+def test_import_starts_run(client, import_links):
+    response = client.post(
+        "/import/linkedin",
+        data={"links": f"{LINK_A}\n{LINK_B}\n{LINK_A}"},
+        follow_redirects=False,
+    )
+
+    assert import_links.calls == [["4012345678", "4012345679"]]
+    assert response.status_code == 303
+    # Importerade jobb syns oavsett poäng.
+    assert response.headers["location"] == (
+        "/?source=linkedin_links&more=1&msg=imported&n=2&known=0&again=0"
+    )
+    assert "2 länkar lades till – poängsätts nu" in client.get(response.headers["location"]).text
+
+
+def test_import_single_link_uses_singular(client, import_links):
+    client.post("/import/linkedin", data={"links": LINK_A})
+
+    assert "1 länk lades till – poängsätts nu" in client.get("/?msg=imported&n=1").text
+
+
+@pytest.mark.parametrize("n", ["", "x", "0", "-3", "21", "1.5", "<script>alert(1)</script>"])
+def test_import_flash_ignores_bad_count(client, n):
+    html = client.get("/", params={"msg": "imported", "n": n}).text
+
+    assert "lades till" not in html
+    assert "<script>alert(1)" not in html
+
+
+@pytest.fixture
+def add_linkedin_job(add_job, engine):
+    """Ett jobb som redan importerats från LinkedIn-länken med jobb-id `job_id`."""
+
+    def _add(job_id: str, **values) -> int:
+        db_id = add_job(sources=(), **values)
+        with session_scope(engine) as session:
+            session.add(JobSource(job_id=db_id, source="linkedin_links", external_id=job_id))
+        return db_id
+
+    return _add
+
+
+def test_import_counts_only_new_links(client, import_links, add_linkedin_job):
+    add_linkedin_job("4012345678", title="Redan importerad")
+
+    response = client.post(
+        "/import/linkedin", data={"links": f"{LINK_A}\n{LINK_B}"}, follow_redirects=False
+    )
+
+    assert import_links.calls == [["4012345679"]]  # den kända hämtas inte igen
+    location = response.headers["location"]
+    assert location == "/?source=linkedin_links&more=1&msg=imported&n=1&known=1&again=0"
+    assert "1 länk lades till – poängsätts nu. 1 länk fanns redan" in client.get(location).text
+
+
+def test_import_of_only_known_links_starts_no_run(client, import_links, add_linkedin_job):
+    add_linkedin_job("4012345678")
+    add_linkedin_job("4012345679")
+
+    response = client.post("/import/linkedin", data={"links": f"{LINK_A}\n{LINK_B}"})
+
+    assert import_links.calls == []
+    assert "2 länkar fanns redan" in response.text
+    assert "lades till" not in response.text
+
+
+def test_import_refetches_known_incomplete_job(client, import_links, add_linkedin_job):
+    add_linkedin_job("4012345678", incomplete=True)
+    add_linkedin_job("4012345679")
+
+    response = client.post("/import/linkedin", data={"links": f"{LINK_A}\n{LINK_B}"})
+
+    assert import_links.calls == [["4012345678"]]
+    assert "2 länkar fanns redan – 1 ofullständig annons hämtas igen" in response.text
+
+
+def test_import_refetch_while_run_in_progress_is_409(client, import_links, add_linkedin_job):
+    add_linkedin_job("4012345678", incomplete=True)
+    import_links.raises = RunInProgress("pågår")
+
+    response = client.post("/import/linkedin", data={"links": LINK_A})
+
+    assert response.status_code == 409
+    assert "En sökning pågår redan" in response.text
+
+
+def test_import_redirect_shows_linkedin_jobs_below_threshold(client, add_linkedin_job, add_job):
+    add_linkedin_job("4012345678", title="Lågt poängsatt LinkedIn-jobb", score=5)
+    add_job(title="Lågt poängsatt Platsbanken-jobb", score=5)
+
+    html = client.get("/?source=linkedin_links&more=1&msg=imported&n=1&known=0&again=0").text
+
+    assert "Lågt poängsatt LinkedIn-jobb" in html
+    assert "Lågt poängsatt Platsbanken-jobb" not in html
+
+
+@pytest.mark.parametrize(
+    ("params", "expected"),
+    [
+        ({"n": "2", "known": "3", "again": "2"},
+         "2 länkar lades till – poängsätts nu. 3 länkar fanns redan – 2 ofullständiga annonser hämtas igen"),
+        ({"n": "0", "known": "1"}, "1 länk fanns redan"),
+        ({"n": "1"}, "1 länk lades till – poängsätts nu"),
+    ],
+)
+def test_import_flash_texts(client, params, expected):
+    html = client.get("/", params={"msg": "imported", **params}).text
+
+    assert f'<p class="flash" role="status">{expected}</p>' in html
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"n": "0", "known": "0"},
+        {"n": "15", "known": "6"},
+        {"n": "1", "known": "-1"},
+        {"n": "1", "known": "x"},
+        {"n": "0", "known": "1", "again": "2"},
+    ],
+)
+def test_import_flash_ignores_bad_known_counts(client, params):
+    html = client.get("/", params={"msg": "imported", **params}).text
+
+    assert "lades till" not in html and "fanns redan" not in html
+
+
+def test_import_in_progress_keeps_text(client, import_links):
+    import_links.raises = RunInProgress("pågår")
+    text = f"{LINK_A}\nhej <b>"
+
+    response = client.post("/import/linkedin", data={"links": text})
+
+    assert response.status_code == 409
+    assert "En sökning pågår redan – försök igen om en stund" in response.text
+    assert LINK_A in response.text
+    assert "hej &lt;b&gt;" in response.text
+    assert import_links.calls == []
+
+
+def test_import_too_many(client, import_links):
+    text = "\n".join(f"https://www.linkedin.com/jobs/view/{n}/" for n in range(1, 22))
+
+    response = client.post("/import/linkedin", data={"links": text})
+
+    assert response.status_code == 400
+    assert "Högst 20 länkar åt gången" in response.text
+    assert "https://www.linkedin.com/jobs/view/21/" in response.text  # texten behålls
+    assert import_links.calls == []
+
+
+def test_import_none_valid(client, import_links):
+    response = client.post("/import/linkedin", data={"links": "hej"})
+
+    assert response.status_code == 400
+    assert "Inga LinkedIn-jobblänkar hittades" in response.text
+    assert import_links.calls == []
+
+
+def test_import_empty_text_is_none_valid(client, import_links):
+    response = client.post("/import/linkedin", data={"links": "  \n "})
+
+    assert response.status_code == 400
+    assert "Inga LinkedIn-jobblänkar hittades" in response.text
+
+
+def test_import_shows_rejected_lines_escaped(client):
+    evil = "<script>alert(1)</script>"
+
+    response = client.post("/import/linkedin", data={"links": f"{evil}\nhttps://example.com/jobs/view/1"})
+
+    assert response.status_code == 400
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in response.text
+    assert "<script>alert(1)" not in response.text
+    assert "https://example.com/jobs/view/1" in response.text
+
+
+def test_import_limits_shown_rejected_lines(client):
+    text = "\n".join(f"skräp {n}" for n in range(13))
+
+    html = client.post("/import/linkedin", data={"links": text}).text
+
+    assert "<li>skräp 9</li>" in html
+    assert "<li>skräp 10</li>" not in html
+    assert "…och 3 till" in html
+
+
+def test_import_rejected_lines_are_shown_when_run_is_busy(client, import_links):
+    import_links.raises = RunInProgress("pågår")
+
+    html = client.post("/import/linkedin", data={"links": f"{LINK_A}\nskräp"}).text
+
+    assert "<li>skräp</li>" in html
+
+
 def test_flash_message_is_whitelisted(client):
     html = client.get("/?msg=<script>alert(1)</script>").text
 
@@ -534,17 +749,20 @@ def test_javascript_urls_in_source_and_form_are_not_linked(client, add_job, engi
 # --- CSRF och DNS-rebinding ------------------------------------------------------------
 
 
-def test_cross_origin_post_is_forbidden(client, add_job, engine, run_now):
+def test_cross_origin_post_is_forbidden(client, add_job, engine, run_now, import_links):
     job_id = add_job()
     evil = {"Origin": "https://evil.example"}
 
     assert client.post(f"/jobs/{job_id}/dismiss", headers=evil).status_code == 403
     assert client.post(f"/jobs/{job_id}/apply", headers=evil).status_code == 403
+    imported = client.post("/import/linkedin", data={"links": LINK_A}, headers=evil)
     response = client.post("/run", headers=evil)
 
+    assert imported.status_code == 403
     assert response.status_code == 403
     assert "Förbjudet" in response.text
     assert run_now.calls == 0
+    assert import_links.calls == []
     assert status_of(engine, job_id) == JobStatus.scored
 
 

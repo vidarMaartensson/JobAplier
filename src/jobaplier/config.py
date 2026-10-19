@@ -49,17 +49,11 @@ class Toggle(BaseModel):
 
 class SourcesConfig(BaseModel):
     platsbanken: Toggle = Field(default_factory=Toggle)
-    linkedin_alerts: Toggle = Field(default_factory=Toggle)
     careers: list[CareerSite] = []
 
 
 class ScoringConfig(BaseModel):
     threshold: int = 60
-
-
-class ApplyConfig(BaseModel):
-    dry_run: bool = True
-    max_emails_per_day: int = 10
 
 
 class AIConfig(BaseModel):
@@ -73,7 +67,6 @@ class Config(BaseModel):
     sources: SourcesConfig = Field(default_factory=SourcesConfig)
     scoring: ScoringConfig = Field(default_factory=ScoringConfig)
     schedule: list[str] = Field(default_factory=lambda: ["08:00", "12:00", "17:00"])
-    apply: ApplyConfig = Field(default_factory=ApplyConfig)
     ai: AIConfig = Field(default_factory=AIConfig)
     ai_monthly_budget_usd: float = 10.0
 
@@ -113,8 +106,6 @@ class Paths:
     db: Path
     cv: Path
     config: Path
-    gmail_credentials: Path
-    gmail_token: Path
     browser: Path
     logs: Path
     letter_examples: Path
@@ -128,8 +119,6 @@ class Paths:
             db=data_dir / "jobaplier.db",
             cv=data_dir / "cv.pdf",
             config=data_dir / "config.yaml",
-            gmail_credentials=data_dir / "credentials.json",
-            gmail_token=data_dir / "gmail_token.json",
             browser=data_dir / "browser",
             logs=data_dir / "logs",
             letter_examples=data_dir / "letter_examples",

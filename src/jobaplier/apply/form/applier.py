@@ -13,6 +13,7 @@ import threading
 from collections.abc import Callable
 from concurrent.futures import Future
 from concurrent.futures import TimeoutError as FutureTimeout
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
@@ -21,6 +22,7 @@ from playwright.sync_api import Error as PlaywrightError
 from jobaplier.apply.base import SubmitError, SubmitResult
 from jobaplier.apply.form.fields import Applicant
 from jobaplier.apply.form.generic import FillReport, FormAdapter
+from jobaplier.apply.package import letter_filename
 from jobaplier.apply.pdf import render_letter_pdf
 from jobaplier.config import Config, Paths
 from jobaplier.models import ApplicationStatus, Channel, Draft, Job
@@ -41,12 +43,14 @@ class FormApplier:
         adapters: list[FormAdapter],
         headless: bool = False,
         *,
+        cv_pdf: Callable[[Job, Draft], Path] | None = None,
         allow_file_urls: bool = False,
     ) -> None:
         self.config = config
         self.paths = paths
         self.adapters = adapters
         self.headless = headless
+        self.cv_pdf = cv_pdf
         self.allow_file_urls = allow_file_urls
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
@@ -57,17 +61,19 @@ class FormApplier:
     def submit(self, job: Job, draft: Draft) -> SubmitResult:
         url = self._checked_url(job.apply_form_url)
         config = self.config()
-        if not self.paths.cv.is_file():
-            raise SubmitError("Ditt CV saknas (data/cv.pdf) – ladda upp det först")
+        cv_path = self._cv_for(job, draft)
         try:
             letter_pdf = render_letter_pdf(
                 draft.letter_text,
                 config.profile.name,
-                self.paths.data_dir / "tmp" / f"letter-{job.id}.pdf",
+                # Samma filnamn som nedladdningen; arbetsgivaren ser det.
+                self.paths.data_dir / "tmp" / str(job.id) / letter_filename(job.company),
             )
         except Exception as e:
             raise SubmitError(f"Kunde inte skapa det personliga brevet som PDF: {e}") from e
-        applicant = Applicant.from_config(config, self.paths, draft.letter_text, letter_pdf)
+        applicant = Applicant.from_config(
+            config, self.paths, draft.letter_text, letter_pdf, cv_path=cv_path
+        )
 
         future: Future[FillReport] = Future()
         with self._lock:
@@ -102,6 +108,17 @@ class FormApplier:
             return
         tasks.put(_STOP)
         thread.join(timeout=CLOSE_JOIN_TIMEOUT_S)
+
+    def _cv_for(self, job: Job, draft: Draft) -> Path:
+        """Körs i anropande tråd: kan rendera PDF och anropa AI, aldrig i webbläsartråden."""
+        if self.cv_pdf is None:
+            if not self.paths.cv.is_file():
+                raise SubmitError("Ditt CV saknas (data/cv.pdf) – ladda upp det först")
+            return self.paths.cv
+        try:
+            return self.cv_pdf(job, draft)
+        except Exception as e:
+            raise SubmitError(f"Kunde inte skapa CV:t som PDF: {e}") from e
 
     def _checked_url(self, url: str | None) -> str:
         if not url:

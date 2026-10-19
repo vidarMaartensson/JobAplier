@@ -11,9 +11,6 @@ CV_MISSING = "CV saknas – lägg ditt CV som data/cv.pdf"
 CONFIG_MISSING = "Inställningar saknas – fyll i dem under Inställningar (sparas som data/config.yaml)"
 CLAUDE_MISSING = "Claude Code hittas inte – installera och logga in med `claude`"
 API_KEY_MISSING = "ANTHROPIC_API_KEY saknas – lägg nyckeln i .env"
-GMAIL_MISSING = (
-    "Gmail-inloggning saknas – lägg data/credentials.json på plats och kör `jobaplier gmail-login`"
-)
 
 
 def compute_setup_missing(
@@ -42,7 +39,4 @@ def compute_setup_missing(
             missing.append(API_KEY_MISSING)
     elif not claude_code_available(ai.claude_bin):
         missing.append(CLAUDE_MISSING)
-
-    if not paths.gmail_token.is_file():
-        missing.append(GMAIL_MISSING)
     return missing

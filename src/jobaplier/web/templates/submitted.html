@@ -16,23 +16,8 @@
 <p>Det finns ingen ansökan för det här jobbet ännu.</p>
 
 {% elif application.status.value == "submitted" %}
-<h1>{% if heading %}{{ heading }}{% elif manual %}Markerad som skickad{% elif application.dry_run %}Torrkörning klar{% else %}Ansökan skickad{% endif %}</h1>
-{% if application.channel.value == "email" %}
-  {% if application.dry_run %}
-  <div class="banner banner-warn" role="status">
-    <strong>Torrkörning – mejlet skickades till dig själv. Jobbet ligger kvar som utkast.</strong>
-    Mejlet gick till {{ own_email }} i stället för till {{ job.apply_email }}. Inget har gått
-    till arbetsgivaren.
-  </div>
-  {% if job.status.value == "draft_ready" %}
-  <p><a class="button primary" href="/jobs/{{ job.id }}/draft">Tillbaka till utkastet</a></p>
-  {% endif %}
-  {% else %}
-  <p class="flash" role="status">Mejlet skickades till {{ job.apply_email }}.</p>
-  {% endif %}
-{% else %}
-  <p class="flash" role="status">Ansökan är markerad som skickad.</p>
-{% endif %}
+<h1>{% if heading %}{{ heading }}{% elif manual %}Markerad som skickad{% else %}Ansökan skickad{% endif %}</h1>
+<p class="flash" role="status">Ansökan är markerad som skickad.</p>
 {% if application.receipt %}<p class="meta">Kvitto: {{ application.receipt }}</p>{% endif %}
 
 {% elif application.status.value == "submitting" and application.channel.value == "form" %}
@@ -40,6 +25,10 @@
 <p>Formuläret är öppnat i webbläsaren.
   {% if unanswered %}Obesvarade frågor: {{ unanswered|join(", ") }}.{% endif %}
   Klicka Skicka där och sedan här.</p>
+<div class="actions">
+  <a class="button" href="/jobs/{{ job.id }}/draft/cv.pdf">Ladda ner CV (PDF)</a>
+  <a class="button" href="/jobs/{{ job.id }}/draft/letter.pdf">Ladda ner personligt brev (PDF)</a>
+</div>
 <form method="post" action="/jobs/{{ job.id }}/mark-submitted">
   <button class="primary" type="submit">Jag har skickat – markera som skickad</button>
 </form>

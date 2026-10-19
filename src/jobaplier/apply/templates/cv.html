@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="{{ cv.language }}">
+<head>
+<meta charset="utf-8">
+<title>{{ cv.name | one_line }}</title>
+<style>
+  @page { size: A4; margin: 1.8cm; }
+  :root { --ink: #1a1a1a; --accent: #1f2a44; --muted: #555555; --rule: #999999; }
+  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 10.5pt;
+         line-height: 1.35; color: var(--ink); margin: 0; }
+  header { margin-bottom: 0.9em; }
+  h1 { font-size: 20pt; line-height: 1.15; margin: 0; color: var(--accent); }
+  .headline { font-size: 12pt; color: var(--muted); margin: 0.15em 0 0 0; }
+  .contact { font-size: 9.5pt; color: var(--muted); margin: 0.5em 0 0 0; }
+  h2 { font-size: 11pt; font-weight: bold; letter-spacing: 0.03em; color: var(--accent);
+       border-bottom: 0.75pt solid var(--rule); padding-bottom: 0.15em; margin: 1.1em 0 0.5em 0;
+       break-after: avoid; }
+  p { margin: 0; }
+  .entry { margin-bottom: 0.7em; }
+  .entry-head { display: flex; justify-content: space-between; align-items: baseline;
+                break-after: avoid; }
+  .entry-title { font-weight: bold; }
+  .period { color: var(--muted); white-space: nowrap; margin-left: 1em; }
+  .entry-sub { color: var(--muted); }
+  ul { margin: 0.25em 0 0 0; padding-left: 1.2em; }
+  li { margin: 0.1em 0; }
+  li, .entry-head { break-inside: avoid; }
+  .plain { margin-top: 0.25em; }
+</style>
+</head>
+<body>
+<header>
+  <h1>{{ cv.name | one_line }}</h1>
+  {% if cv.headline | one_line %}<p class="headline">{{ cv.headline | one_line }}</p>{% endif %}
+  {% if contact %}<p class="contact">{{ contact | join(" · ") }}</p>{% endif %}
+</header>
+
+{% if cv.summary.strip() %}
+<section>
+  <h2>{{ headings.summary }}</h2>
+  <p>{{ cv.summary.strip() }}</p>
+</section>
+{% endif %}
+
+{% if cv.experience %}
+<section>
+  <h2>{{ headings.experience }}</h2>
+  {% for e in cv.experience %}
+  <div class="entry">
+    <div class="entry-head">
+      <span class="entry-title">{{ e.title | one_line }}</span>
+      {% if e.period | one_line %}<span class="period">{{ e.period | one_line }}</span>{% endif %}
+    </div>
+    {% set place = [e.employer | one_line, e.location | one_line] | select | join(", ") %}
+    {% if place %}<p class="entry-sub">{{ place }}</p>{% endif %}
+    {% if e.bullets %}<ul>{% for b in e.bullets if b | one_line %}<li>{{ b | one_line }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if cv.education %}
+<section>
+  <h2>{{ headings.education }}</h2>
+  {% for e in cv.education %}
+  <div class="entry">
+    <div class="entry-head">
+      <span class="entry-title">{{ e.degree | one_line }}</span>
+      {% if e.period | one_line %}<span class="period">{{ e.period | one_line }}</span>{% endif %}
+    </div>
+    {% if e.school | one_line %}<p class="entry-sub">{{ e.school | one_line }}</p>{% endif %}
+    {% if e.details %}<ul>{% for d in e.details if d | one_line %}<li>{{ d | one_line }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if cv.skills %}
+<section>
+  <h2>{{ headings.skills }}</h2>
+  <p>{{ cv.skills | map("one_line") | select | join(" · ") }}</p>
+</section>
+{% endif %}
+
+{% if cv.languages %}
+<section>
+  <h2>{{ headings.languages }}</h2>
+  <p>{{ cv.languages | map("one_line") | select | join(" · ") }}</p>
+</section>
+{% endif %}
+
+{% for section in cv.other if section.heading | one_line and section.items %}
+<section>
+  <h2>{{ section.heading | one_line }}</h2>
+  <ul>{% for item in section.items if item | one_line %}<li>{{ item | one_line }}</li>{% endfor %}</ul>
+</section>
+{% endfor %}
+</body>
+</html>

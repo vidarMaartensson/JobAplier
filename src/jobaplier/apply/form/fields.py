@@ -51,7 +51,13 @@ class Applicant:
 
     @classmethod
     def from_config(
-        cls, config: Config, paths: Paths, letter_text: str, letter_pdf: Path
+        cls,
+        config: Config,
+        paths: Paths,
+        letter_text: str,
+        letter_pdf: Path,
+        *,
+        cv_path: Path | None = None,
     ) -> Applicant:
         first, _, last = config.profile.name.strip().partition(" ")
         return cls(
@@ -60,7 +66,7 @@ class Applicant:
             email=config.profile.email,
             phone=config.profile.phone,
             linkedin_url=config.profile.linkedin_url,
-            cv_path=paths.cv,
+            cv_path=cv_path or paths.cv,
             letter_text=letter_text,
             letter_pdf=letter_pdf,
         )

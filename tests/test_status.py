@@ -8,6 +8,8 @@ S = JobStatus
 EDGES = [
     (S.new, S.filtered),
     (S.new, S.scored),
+    (S.scored, S.new),
+    (S.filtered, S.new),
     (S.scored, S.dismissed),
     (S.scored, S.link),
     (S.scored, S.drafting),
@@ -15,6 +17,7 @@ EDGES = [
     (S.drafting, S.scored),
     (S.draft_ready, S.approved),
     (S.draft_ready, S.dismissed),
+    (S.draft_ready, S.submitted),
     (S.approved, S.submitting),
     (S.submitting, S.submitted),
     (S.submitting, S.failed),

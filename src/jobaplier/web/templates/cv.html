@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Ditt CV – JobAplier{% endblock %}
+{% block content %}
+<h1>Ditt strukturerade CV</h1>
+{% if cv is none %}
+<p class="empty">Ditt CV har inte lästs ut än – det görs när du klickar Ansök på ett jobb (eller Försök igen på ett utkast)</p>
+{% else %}
+<p class="meta">
+  Så här har ditt CV (cv.pdf) tolkats. Titlar, arbetsgivare, orter, perioder och utbildning
+  i de skräddarsydda CV:na kopieras alltid härifrån; bara urval och formuleringar anpassas
+  per jobb. Ser något fel ut, rätta originalet och lägg in det på nytt.
+</p>
+{% if warnings %}
+<div class="banner banner-warn" role="alert">
+  <ul>
+    {% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<section class="cv-doc">
+  <h2 class="cv-name">{{ cv.name or "Namn saknas" }}</h2>
+  {% set contact = [cv.email, cv.phone, cv.location, cv.linkedin_url]|select|list %}
+  {% if contact %}<p class="meta">{{ contact|join(" · ") }}</p>{% endif %}
+
+  {% if cv.summary %}
+  <h2>Profil</h2>
+  <p>{{ cv.summary }}</p>
+  {% endif %}
+
+  {% if cv.experience %}
+  <h2>Erfarenhet</h2>
+  {% for job in cv.experience %}
+  <div class="cv-entry">
+    <h3>{{ job.title }}{% if job.employer %} · {{ job.employer }}{% endif %}</h3>
+    <p class="meta">{{ [job.period, job.location]|select|join(" · ") }}</p>
+    {% if job.bullets %}
+    <ul>{% for bullet in job.bullets %}<li>{{ bullet }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if cv.education %}
+  <h2>Utbildning</h2>
+  {% for edu in cv.education %}
+  <div class="cv-entry">
+    <h3>{{ edu.degree }}{% if edu.school %} · {{ edu.school }}{% endif %}</h3>
+    {% if edu.period %}<p class="meta">{{ edu.period }}</p>{% endif %}
+    {% if edu.details %}
+    <ul>{% for detail in edu.details %}<li>{{ detail }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if cv.skills %}
+  <h2>Kompetenser</h2>
+  <p>{{ cv.skills|join(", ") }}</p>
+  {% endif %}
+
+  {% if cv.languages %}
+  <h2>Språk</h2>
+  <p>{{ cv.languages|join(", ") }}</p>
+  {% endif %}
+
+  {% for section in cv.other %}
+  {% if section.items %}
+  <h2>{{ section.heading }}</h2>
+  <ul>{% for item in section.items %}<li>{{ item }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

@@ -55,17 +55,22 @@ def extract_cv_text(pdf: Path) -> str:
     return text
 
 
+def cv_file_hash(cv_path: Path) -> str:
+    """sha256 av CV-filens innehåll. Cache-nyckel för profil och strukturerat CV."""
+    try:
+        return hashlib.sha256(cv_path.read_bytes()).hexdigest()
+    except FileNotFoundError:
+        raise CVMissing(f"CV-filen saknas: {cv_path}") from None
+    except OSError as exc:
+        raise CVUnreadable(f"CV-filen {cv_path.name} kunde inte läsas: {exc}") from exc
+
+
 def load_or_build_profile(session: Session, cv_path: Path, ai: AIClient) -> ProfileRecord:
     """Returnerar senaste profilen om CV:t är oförändrat, annars byggs en ny.
 
     Den nya raden läggs till och flushas; anroparen committar sessionen.
     """
-    try:
-        cv_hash = hashlib.sha256(cv_path.read_bytes()).hexdigest()
-    except FileNotFoundError:
-        raise CVMissing(f"CV-filen saknas: {cv_path}") from None
-    except OSError as exc:
-        raise CVUnreadable(f"CV-filen {cv_path.name} kunde inte läsas: {exc}") from exc
+    cv_hash = cv_file_hash(cv_path)
 
     latest = session.exec(select(ProfileRecord).order_by(ProfileRecord.id.desc())).first()
     if latest is not None and latest.cv_hash == cv_hash:

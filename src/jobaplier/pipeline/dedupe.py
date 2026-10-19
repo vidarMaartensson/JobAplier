@@ -5,7 +5,7 @@ import unicodedata
 
 from sqlmodel import Session, select
 
-from jobaplier.models import ApplyMethod, Job, JobSource, JobStatus
+from jobaplier.models import ApplyMethod, Job, JobSource, JobStatus, utcnow
 from jobaplier.sources.base import RawJob
 
 _COMPANY_FORM_TOKENS = frozenset(
@@ -109,3 +109,34 @@ def upsert_raw_jobs(session: Session, raws: list[RawJob]) -> list[Job]:
         session.flush()
         created.append(job)
     return created
+
+
+def refresh_incomplete(session: Session, raws: list[RawJob]) -> list[Job]:
+    """Jobb som lades in ofullständiga (sidan gick inte att läsa) och nu har hämtats
+    helt får källans titel, företag, ort och annonstext. Dubblettnyckeln följer med om
+    inget annat jobb redan har den. Returnerar de uppdaterade jobben; statusen ändras
+    inte här. Gör flush men inte commit."""
+    refreshed: list[Job] = []
+    for raw in raws:
+        if raw.incomplete:
+            continue
+        job = session.exec(
+            select(Job)
+            .join(JobSource, JobSource.job_id == Job.id)
+            .where(JobSource.source == raw.source, JobSource.external_id == raw.external_id)
+        ).first()
+        if job is None or not job.incomplete:
+            continue
+        key = dedupe_key(raw.company, raw.title)
+        taken = session.exec(select(Job.id).where(Job.dedupe_key == key, Job.id != job.id)).first()
+        if taken is None:
+            job.dedupe_key = key
+        job.title = raw.title
+        job.company = raw.company
+        job.location = raw.location
+        job.description = raw.description
+        job.incomplete = False
+        job.updated_at = utcnow()
+        session.flush()
+        refreshed.append(job)
+    return refreshed

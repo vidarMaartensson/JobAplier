@@ -1,4 +1,4 @@
-"""Kommandoraden `jobaplier`: serve, gmail-login, run-once och install-launchd."""
+"""Kommandoraden `jobaplier`: serve, run-once och install-launchd."""
 
 from __future__ import annotations
 
@@ -52,7 +52,6 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser(
         "serve", help=f"starta dashboarden och schemat på http://{HOST}:{PORT} (standard)"
     )
-    commands.add_parser("gmail-login", help="logga in mot Gmail (öppnar webbläsaren)")
     commands.add_parser("run-once", help="gör en sökkörning nu och skriv ut statistiken")
     commands.add_parser(
         "install-launchd", help="skriv launchd-agenten som startar tjänsten vid inloggning"
@@ -92,22 +91,6 @@ def serve() -> None:
     app = create_production_app()
     server = uvicorn.Server(uvicorn.Config(app, host=HOST, port=PORT))
     server.run(sockets=[sock])
-
-
-# --- gmail-login -------------------------------------------------------------------------
-
-
-def gmail_login() -> None:
-    from jobaplier.gmail import run_oauth_flow
-
-    paths = get_paths()
-    if not paths.gmail_credentials.is_file():
-        raise CLIError(
-            f"{paths.gmail_credentials} saknas. Skapa ett OAuth-klient-id (typ Desktop) i Google "
-            "Cloud Console och spara JSON-filen där (se README)."
-        )
-    run_oauth_flow(paths.gmail_credentials, paths.gmail_token)
-    print(f"Gmail-inloggningen är klar. Token sparad i {paths.gmail_token}.")
 
 
 # --- run-once ------------------------------------------------------------------------------
@@ -224,8 +207,6 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if command == "serve":
             serve()
-        elif command == "gmail-login":
-            gmail_login()
         elif command == "run-once":
             return run_once()
         elif command == "install-launchd":

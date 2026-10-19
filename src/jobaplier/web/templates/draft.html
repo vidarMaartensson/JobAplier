@@ -3,20 +3,16 @@
 {% block main_class %}wide{% endblock %}
 {% block content %}
 {% set ad_url = job.url|safe_url %}
+{% set method = job.apply_method.value %}
 <p><a href="/">&larr; Jobblistan</a> · <a href="/jobs/{{ job.id }}">Visa jobbet</a></p>
 <h1>{{ job.title }}</h1>
 <p class="meta">
   {{ job.company }}{% if job.location %} · {{ job.location }}{% endif %}
   · <span class="chip">{{ status_labels[job.status] }}</span>
-  {% if ad_url %}· <a href="{{ ad_url }}" target="_blank" rel="noopener noreferrer">Öppna annonsen</a>{% endif %}
+  · Ansökningsväg: {{ method_labels[job.apply_method] }}
+  {% if ad_url and method != "unknown" %}· <a href="{{ ad_url }}" target="_blank" rel="noopener noreferrer">Annonsen</a>{% endif %}
 </p>
 
-{% if dry_run %}
-<div class="banner banner-warn" role="status">
-  <strong>Torrkörning är på – mejlet skickas till dig själv.</strong>
-  Stäng av torrkörning under <a href="/settings">Inställningar</a> när du vill skicka på riktigt.
-</div>
-{% endif %}
 {% if flash %}<p class="flash" role="status">{{ flash }}</p>{% endif %}
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 {% if previous_error %}
@@ -24,15 +20,152 @@
   <strong>Förra försöket misslyckades:</strong> {{ previous_error }}
 </div>
 {% endif %}
+{% if sent %}
+<div class="banner banner-done" role="status">
+  <strong>Markerad som skickad {{ sent.submitted_at|localtime }}</strong>
+  {% if sent.receipt %}<span class="meta">· Kvitto: {{ sent.receipt }}</span>{% endif %}
+  <br><span class="meta">Filerna går fortfarande att ladda ner om du behöver dem igen.</span>
+</div>
+{% endif %}
+
+<h2 class="package-title">Ansökningspaket</h2>
+{% if job.incomplete %}
+<div class="banner banner-warn" role="alert">
+  Annonsen kunde inte läsas – brevet och CV:t bygger bara på titel och företag
+</div>
+{% endif %}
 
 <div class="two-col">
-  <section>
-    <h2>Annonstext</h2>
-    <div class="ad ad-scroll">{{ job.description }}</div>
+  {# --- vänster: så skickar du ansökan ------------------------------------------------- #}
+  <section class="package">
+    <ol class="steps">
+      <li>
+        <h3>CV och personligt brev</h3>
+        {% if cv_fallback %}
+        <div class="banner banner-warn" role="status">
+          Inget skräddarsytt CV finns för det här utkastet – nedladdningen ger ditt original-CV
+        </div>
+        {% endif %}
+        {% if cv_warnings %}
+        <div class="banner banner-warn" role="alert">
+          <strong>Varningar för CV:t</strong>
+          <ul>
+            {% for warning in cv_warnings %}<li>{{ warning }}</li>{% endfor %}
+          </ul>
+          <span class="meta">Kontrollera CV:t innan du skickar.</span>
+        </div>
+        {% endif %}
+        <div class="actions">
+          <a class="button" href="/jobs/{{ job.id }}/draft/cv.pdf">Ladda ner CV (PDF)</a>
+          {% if editable %}
+          {# Skickar textrutan: PDF:en blir texten som den står just nu (inget sparas). #}
+          <button type="submit" form="letter-form" formaction="/jobs/{{ job.id }}/draft/letter.pdf" formmethod="post">Ladda ner personligt brev (PDF)</button>
+          {% else %}
+          <a class="button" href="/jobs/{{ job.id }}/draft/letter.pdf">Ladda ner personligt brev (PDF)</a>
+          {% endif %}
+          {% if editable and cv_retry %}
+          <form method="post" action="/jobs/{{ job.id }}/draft/tailor">
+            <button type="submit">Försök igen</button>
+          </form>
+          {% endif %}
+        </div>
+        <p class="meta">
+          <a href="/cv">Visa ditt strukturerade CV</a>
+          {% if editable %}· PDF:en skapas av texten i brevrutan just nu. När du trycker Jag har skickat sparas texten.{% endif %}
+        </p>
+      </li>
+
+      {% if method == "email" %}
+      <li>
+        <h3>Skicka mejlet</h3>
+        <label class="copy-field">Mottagare
+          <span class="copy-row">
+            <input type="text" id="package-to" value="{{ email.to }}" readonly>
+            <button type="button" data-copy-target="package-to">Kopiera</button>
+          </span>
+        </label>
+        {% if not email.mailto %}
+        <p class="error" role="alert">
+          {% if email.to %}Mottagaren är inte en giltig e-postadress – kontrollera adressen i annonsen.
+          {% else %}Annonsen saknar mottagaradress – se annonsen.{% endif %}
+        </p>
+        {% endif %}
+        <label class="copy-field">Ämne
+          <span class="copy-row">
+            <input type="text" id="package-subject" value="{{ email.subject }}" readonly>
+            <button type="button" data-copy-target="package-subject">Kopiera</button>
+          </span>
+        </label>
+        <label class="copy-field">Brödtext
+          <textarea id="package-body" rows="8" readonly>
+{{ email.body }}</textarea>
+        </label>
+        <div class="actions">
+          <button type="button" data-copy-target="package-body">Kopiera brödtexten</button>
+          {% if email.mailto %}
+          <a class="button" href="{{ email.mailto }}">Öppna i mejlprogrammet</a>
+          {% endif %}
+        </div>
+        <p class="meta"><strong>Bifoga de två PDF:erna</strong> – länken till mejlprogrammet kan inte bifoga filer.</p>
+      </li>
+      {% elif method == "form" %}
+      {% set form_url = job.apply_form_url|safe_url %}
+      <li>
+        <h3>Fyll i formuläret</h3>
+        <div class="actions">
+          {% if editable %}
+          {# Knappen hör till brevets formulär, så att osparade ändringar sparas först. #}
+          <button class="primary" type="submit" form="letter-form" formaction="/jobs/{{ job.id }}/draft/approve">Fyll i automatiskt</button>
+          {% endif %}
+          {% if form_url %}
+          <a class="button" href="{{ form_url }}" target="_blank" rel="noopener noreferrer">Öppna formuläret</a>
+          {% endif %}
+          {% if editable %}
+          {# Hör till brevets formulär: osparade ändringar sparas, och den versionen markeras. #}
+          <button type="submit" form="letter-form" formaction="/jobs/{{ job.id }}/draft/sent">Jag har skickat</button>
+          {% endif %}
+        </div>
+        <p class="meta">
+          Fyll i automatiskt öppnar formuläret i webbläsaren och fyller i det med CV och brev,
+          men skickar aldrig. Du granskar och skickar själv, och markerar sedan ansökan som skickad.
+          Fyller du i formuläret själv (Öppna formuläret, ladda upp de två PDF:erna eller klistra
+          in brevet med <em>Kopiera</em>) trycker du Jag har skickat när ansökan är skickad.
+        </p>
+      </li>
+      {% else %}
+      <li>
+        <h3>Ansök hos arbetsgivaren</h3>
+        <div class="actions">
+          {% if ad_url %}
+          <a class="button" href="{{ ad_url }}" target="_blank" rel="noopener noreferrer">Öppna annonsen</a>
+          {% else %}
+          <span class="meta">Annonsen saknar länk.</span>
+          {% endif %}
+        </div>
+        <p class="meta">
+          Följ annonsens instruktioner. Ladda upp de två PDF:erna, eller klistra in brevet med
+          <em>Kopiera</em> vid brevet.
+        </p>
+      </li>
+      {% endif %}
+
+      {% if editable and method != "form" %}
+      <li>
+        <h3>Markera som skickad</h3>
+        {# Hör till brevets formulär: osparade ändringar sparas, och den versionen markeras. #}
+        <button class="primary" type="submit" form="letter-form" formaction="/jobs/{{ job.id }}/draft/sent">Jag har skickat</button>
+        <p class="meta">
+          Tryck när ansökan är skickad. Ändringar i brevet sparas först, och jobbet flyttas
+          till dina ansökningar.
+        </p>
+      </li>
+      {% endif %}
+    </ol>
   </section>
 
+  {# --- höger: brevet ------------------------------------------------------------------- #}
   <section>
-    <h2>Personligt brev <span class="count">version {{ draft.version }} · {{ words }} ord</span></h2>
+    <h3>Personligt brev <span class="count">version {{ draft.version }} · {{ words }} ord</span></h3>
 
     {% if draft.unsupported_claims_json %}
     <div class="banner banner-warn" role="alert">
@@ -45,36 +178,40 @@
     {% endif %}
 
     {% if editable %}
-    <form method="post" action="/jobs/{{ job.id }}/draft" class="letter-form">
+    <form method="post" action="/jobs/{{ job.id }}/draft" class="letter-form" id="letter-form">
       <input type="hidden" name="draft_id" value="{{ draft.id }}">
-      {% if job.apply_method.value in ("email", "form") %}<input type="hidden" name="channel" value="{{ job.apply_method.value }}">{% endif %}
-      <textarea name="letter_text" rows="22" aria-label="Personligt brev" required>
+      {% if method == "form" %}<input type="hidden" name="channel" value="form">{% endif %}
+      <textarea id="letter-text" name="letter_text" rows="22" aria-label="Personligt brev" required>
 {{ letter_text }}</textarea>
       <div class="actions">
         <button type="submit">Spara ändringar</button>
-        <button class="primary" type="submit" formaction="/jobs/{{ job.id }}/draft/approve">
-          {% if job.apply_method.value == "form" %}Öppna formulär{% else %}Godkänn och skicka{% endif %}
-        </button>
+        <button type="button" data-copy-target="letter-text">Kopiera brevet</button>
       </div>
-      <p class="meta">
-        Osparade ändringar sparas som en ny version när du godkänner.
-        {% if job.apply_method.value == "email" and job.apply_email %}Mejlet går till {{ job.apply_email }}.{% endif %}
-        {% if job.apply_method.value == "form" %}Formuläret fylls i men skickas aldrig av programmet.{% endif %}
-      </p>
+      {% if method == "form" %}
+      <p class="meta">Osparade ändringar sparas som en ny version när du fyller i formuläret.</p>
+      {% endif %}
     </form>
 
     <form method="post" action="/jobs/{{ job.id }}/draft/regenerate" class="regen-form">
-      <label>Ny version med instruktion
+      <label>Ny version med instruktion (gör om både brev och CV)
         <input type="text" name="instruction" value="{{ instruction }}" maxlength="500"
                placeholder="t.ex. gör det kortare och lyft Python mer" required>
       </label>
       <button type="submit">Ny version</button>
     </form>
     {% else %}
-    <textarea rows="22" readonly aria-label="Personligt brev">
+    <textarea id="letter-text" rows="22" readonly aria-label="Personligt brev">
 {{ letter_text }}</textarea>
+    <div class="actions">
+      <button type="button" data-copy-target="letter-text">Kopiera brevet</button>
+    </div>
     <p class="meta">Utkastet går inte att ändra när jobbet har status ”{{ status_labels[job.status] }}”.</p>
     {% endif %}
   </section>
 </div>
+
+<section class="ad-section">
+  <h2>Annonstext</h2>
+  <div class="ad ad-scroll">{{ job.description }}</div>
+</section>
 {% endblock %}

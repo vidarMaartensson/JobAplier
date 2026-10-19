@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Utkast: {{ job.title }} – JobAplier{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+{% set ad_url = job.url|safe_url %}
+<p><a href="/">&larr; Jobblistan</a> · <a href="/jobs/{{ job.id }}">Visa jobbet</a></p>
+<h1>{{ job.title }}</h1>
+<p class="meta">
+  {{ job.company }}{% if job.location %} · {{ job.location }}{% endif %}
+  · <span class="chip">{{ status_labels[job.status] }}</span>
+  {% if ad_url %}· <a href="{{ ad_url }}" target="_blank" rel="noopener noreferrer">Öppna annonsen</a>{% endif %}
+</p>
+
+{% if dry_run %}
+<div class="banner banner-warn" role="status">
+  <strong>Torrkörning är på – mejlet skickas till dig själv.</strong>
+  Stäng av torrkörning under <a href="/settings">Inställningar</a> när du vill skicka på riktigt.
+</div>
+{% endif %}
+{% if flash %}<p class="flash" role="status">{{ flash }}</p>{% endif %}
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% if previous_error %}
+<div class="banner banner-ai" role="alert">
+  <strong>Förra försöket misslyckades:</strong> {{ previous_error }}
+</div>
+{% endif %}
+
+<div class="two-col">
+  <section>
+    <h2>Annonstext</h2>
+    <div class="ad ad-scroll">{{ job.description }}</div>
+  </section>
+
+  <section>
+    <h2>Personligt brev <span class="count">version {{ draft.version }} · {{ words }} ord</span></h2>
+
+    {% if draft.unsupported_claims_json %}
+    <div class="banner banner-warn" role="alert">
+      <strong>Påståenden utan stöd i CV:t</strong>
+      <ul>
+        {% for claim in draft.unsupported_claims_json %}<li>{{ claim }}</li>{% endfor %}
+      </ul>
+      <span class="meta">Ta bort eller ändra dem innan du skickar.</span>
+    </div>
+    {% endif %}
+
+    {% if editable %}
+    <form method="post" action="/jobs/{{ job.id }}/draft" class="letter-form">
+      <input type="hidden" name="draft_id" value="{{ draft.id }}">
+      {% if job.apply_method.value in ("email", "form") %}<input type="hidden" name="channel" value="{{ job.apply_method.value }}">{% endif %}
+      <textarea name="letter_text" rows="22" aria-label="Personligt brev" required>
+{{ letter_text }}</textarea>
+      <div class="actions">
+        <button type="submit">Spara ändringar</button>
+        <button class="primary" type="submit" formaction="/jobs/{{ job.id }}/draft/approve">
+          {% if job.apply_method.value == "form" %}Öppna formulär{% else %}Godkänn och skicka{% endif %}
+        </button>
+      </div>
+      <p class="meta">
+        Osparade ändringar sparas som en ny version när du godkänner.
+        {% if job.apply_method.value == "email" and job.apply_email %}Mejlet går till {{ job.apply_email }}.{% endif %}
+        {% if job.apply_method.value == "form" %}Formuläret fylls i men skickas aldrig av programmet.{% endif %}
+      </p>
+    </form>
+
+    <form method="post" action="/jobs/{{ job.id }}/draft/regenerate" class="regen-form">
+      <label>Ny version med instruktion
+        <input type="text" name="instruction" value="{{ instruction }}" maxlength="500"
+               placeholder="t.ex. gör det kortare och lyft Python mer" required>
+      </label>
+      <button type="submit">Ny version</button>
+    </form>
+    {% else %}
+    <textarea rows="22" readonly aria-label="Personligt brev">
+{{ letter_text }}</textarea>
+    <p class="meta">Utkastet går inte att ändra när jobbet har status ”{{ status_labels[job.status] }}”.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

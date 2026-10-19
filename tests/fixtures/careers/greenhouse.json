@@ -1,0 +1,36 @@
+{
+  "jobs": [
+    {
+      "absolute_url": "https://job-boards.greenhouse.io/exempel/jobs/6136160004",
+      "internal_job_id": 5196261004,
+      "location": {"name": "Stockholm"},
+      "id": 6136160004,
+      "updated_at": "2026-10-10T09:00:00+02:00",
+      "requisition_id": "1311",
+      "title": "Backend Engineer",
+      "company_name": "Exempel Greenhouse",
+      "first_published": "2026-08-06T12:50:10-04:00",
+      "language": "en",
+      "content": "&lt;div class=&quot;content-intro&quot;&gt;&lt;h2&gt;About us&lt;/h2&gt;\n&lt;p&gt;We build &lt;strong&gt;great&lt;/strong&gt; software &amp;amp; services.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Python&lt;/li&gt;&lt;li&gt;SQL&lt;/li&gt;&lt;/ul&gt;&lt;/div&gt;"
+    },
+    {
+      "absolute_url": "https://job-boards.greenhouse.io/exempel/jobs/6136160005",
+      "internal_job_id": 5196261005,
+      "location": {"name": "Remote - Sweden"},
+      "id": 6136160005,
+      "updated_at": "2026-10-05T09:00:00+02:00",
+      "title": "Platform Engineer",
+      "company_name": "Exempel Greenhouse",
+      "content": "&lt;p&gt;Updated 09:00 local, 07:00 UTC, which is before the cut-off.&lt;/p&gt;"
+    },
+    {
+      "absolute_url": "javascript:alert(1)",
+      "id": 6136160006,
+      "updated_at": "2026-10-12T09:00:00+02:00",
+      "location": {"name": "Stockholm"},
+      "title": "Job with a bad apply URL",
+      "content": "&lt;p&gt;Skipped.&lt;/p&gt;"
+    }
+  ],
+  "meta": {"total": 3}
+}

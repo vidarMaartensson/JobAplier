@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Ansökan – JobAplier{% endblock %}
+{% block content %}
+<p><a href="/">&larr; Jobblistan</a> · <a href="/jobs/{{ job.id }}">Visa jobbet</a></p>
+<p class="meta">{{ job.title }} · {{ job.company }}</p>
+
+{% if problem %}
+<h1>{{ heading or "Något gick fel" }}</h1>
+<p class="error" role="alert">{{ problem }}</p>
+{% if job.status.value == "draft_ready" %}
+<p><a class="button primary" href="/jobs/{{ job.id }}/draft">Tillbaka till utkastet</a></p>
+{% endif %}
+
+{% elif application is none %}
+<h1>Ingen ansökan</h1>
+<p>Det finns ingen ansökan för det här jobbet ännu.</p>
+
+{% elif application.status.value == "submitted" %}
+<h1>{% if heading %}{{ heading }}{% elif manual %}Markerad som skickad{% elif application.dry_run %}Torrkörning klar{% else %}Ansökan skickad{% endif %}</h1>
+{% if application.channel.value == "email" %}
+  {% if application.dry_run %}
+  <div class="banner banner-warn" role="status">
+    <strong>Torrkörning – mejlet skickades till dig själv. Jobbet ligger kvar som utkast.</strong>
+    Mejlet gick till {{ own_email }} i stället för till {{ job.apply_email }}. Inget har gått
+    till arbetsgivaren.
+  </div>
+  {% if job.status.value == "draft_ready" %}
+  <p><a class="button primary" href="/jobs/{{ job.id }}/draft">Tillbaka till utkastet</a></p>
+  {% endif %}
+  {% else %}
+  <p class="flash" role="status">Mejlet skickades till {{ job.apply_email }}.</p>
+  {% endif %}
+{% else %}
+  <p class="flash" role="status">Ansökan är markerad som skickad.</p>
+{% endif %}
+{% if application.receipt %}<p class="meta">Kvitto: {{ application.receipt }}</p>{% endif %}
+
+{% elif application.status.value == "submitting" and application.channel.value == "form" %}
+<h1>Formuläret är öppnat</h1>
+<p>Formuläret är öppnat i webbläsaren.
+  {% if unanswered %}Obesvarade frågor: {{ unanswered|join(", ") }}.{% endif %}
+  Klicka Skicka där och sedan här.</p>
+<form method="post" action="/jobs/{{ job.id }}/mark-submitted">
+  <button class="primary" type="submit">Jag har skickat – markera som skickad</button>
+</form>
+
+{% elif application.status.value == "submitting" %}
+<h1>Ansökan skickas</h1>
+<p>Ansökan skickas just nu. Ladda om sidan om en stund.</p>
+
+{% else %}
+<h1>Ansökan misslyckades</h1>
+<p class="error" role="alert">{{ application.error or "Ansökan kunde inte skickas." }}</p>
+{% if job.status.value == "failed" %}
+<form method="post" action="/jobs/{{ job.id }}/retry">
+  <button class="primary" type="submit">Försök igen</button>
+</form>
+{% elif job.status.value == "draft_ready" %}
+<p><a class="button primary" href="/jobs/{{ job.id }}/draft">Tillbaka till utkastet</a></p>
+{% endif %}
+{% endif %}
+
+{% if sent_draft %}
+<details>
+  <summary>Brevet (version {{ sent_draft.version }})</summary>
+  <div class="ad">{{ sent_draft.letter_text }}</div>
+</details>
+{% endif %}
+{% endblock %}

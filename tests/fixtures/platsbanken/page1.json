@@ -1,0 +1,91 @@
+{
+  "total": {
+    "value": 150
+  },
+  "hits": [
+    {
+      "id": "30000001",
+      "headline": "Backendutvecklare",
+      "employer": {
+        "name": "Exempel AB"
+      },
+      "workplace_address": {
+        "municipality": "Stockholm",
+        "region": "Stockholms län"
+      },
+      "description": {
+        "text": "Vi söker en backendutvecklare med Python-erfarenhet."
+      },
+      "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/30000001",
+      "publication_date": "2026-10-12T08:30:00",
+      "application_details": {
+        "email": "jobb@exempel.se",
+        "url": null,
+        "reference": "BE-2026-17"
+      }
+    },
+    {
+      "id": "30000002",
+      "headline": "Fullstackutvecklare",
+      "employer": {
+        "name": "Teamtailor Exempel AB"
+      },
+      "workplace_address": {
+        "municipality": "Göteborg",
+        "region": "Västra Götalands län"
+      },
+      "description": {
+        "text": "Du bygger webbtjänster i Python och TypeScript."
+      },
+      "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/30000002",
+      "publication_date": "2026-10-12T09:15:00",
+      "application_details": {
+        "email": null,
+        "url": "https://exempel.teamtailor.com/jobs/123-fullstackutvecklare",
+        "reference": null
+      }
+    },
+    {
+      "id": "30000003",
+      "headline": "Systemutvecklare",
+      "employer": {
+        "name": "Ansökan Saknas AB"
+      },
+      "workplace_address": {
+        "municipality": "Malmö",
+        "region": "Skåne län"
+      },
+      "description": {
+        "text": "Ansök via Platsbanken."
+      },
+      "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/30000003",
+      "publication_date": "2026-10-13T07:00:00",
+      "application_details": {
+        "email": null,
+        "url": null,
+        "reference": null
+      }
+    },
+    {
+      "id": "30000004",
+      "headline": "Python-utvecklare",
+      "employer": {
+        "name": "Okänd Sida AB"
+      },
+      "workplace_address": {
+        "municipality": null,
+        "region": "Skåne län"
+      },
+      "description": {
+        "text": "Ansök på vår webbplats."
+      },
+      "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/30000004",
+      "publication_date": "2026-10-13T10:45:00",
+      "application_details": {
+        "email": null,
+        "url": "https://exempel.se/karriar",
+        "reference": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "total": {
+    "value": 150
+  },
+  "hits": [
+    {
+      "id": "30000005",
+      "headline": "Datautvecklare",
+      "employer": {
+        "name": "Data AB"
+      },
+      "workplace_address": {
+        "municipality": "Uppsala",
+        "region": "Uppsala län"
+      },
+      "description": {
+        "text": "Arbeta med dataflöden."
+      },
+      "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/30000005",
+      "publication_date": "2026-10-14T08:00:00",
+      "application_details": {
+        "email": "rekrytering@data.example",
+        "url": null,
+        "reference": null
+      }
+    },
+    {
+      "id": "30000006",
+      "headline": "DevOps-ingenjör",
+      "employer": {
+        "name": "Moln AB"
+      },
+      "workplace_address": {
+        "municipality": "Linköping",
+        "region": "Östergötlands län"
+      },
+      "description": {
+        "text": "Du driftar våra tjänster."
+      },
+      "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/30000006",
+      "publication_date": "2026-10-14T11:30:00",
+      "application_details": {
+        "email": null,
+        "url": null,
+        "reference": null
+      }
+    }
+  ]
+}

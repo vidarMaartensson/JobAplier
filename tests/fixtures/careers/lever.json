@@ -1,0 +1,35 @@
+[
+  {
+    "additionalPlain": "We are an equal opportunity employer.",
+    "additional": "<div>We are an equal opportunity employer.</div>",
+    "categories": {
+      "commitment": "Permanent",
+      "department": "Engineering",
+      "location": "Stockholm",
+      "team": "Platform",
+      "allLocations": ["Stockholm"]
+    },
+    "createdAt": 1791622800000,
+    "descriptionPlain": "We are looking for a developer to join our platform team.",
+    "description": "<div>We are looking for a developer to join our platform team.</div>",
+    "id": "223f9722-3579-4ff2-b123-e4cc7b0c1a64",
+    "lists": [
+      {"text": "What you'll do", "content": "<li>Build APIs</li><li>Review code</li>"}
+    ],
+    "text": "Software Developer",
+    "country": "SE",
+    "workplaceType": "remote",
+    "hostedUrl": "https://jobs.lever.co/exempel/223f9722-3579-4ff2-b123-e4cc7b0c1a64",
+    "applyUrl": "https://jobs.lever.co/exempel/223f9722-3579-4ff2-b123-e4cc7b0c1a64/apply"
+  },
+  {
+    "categories": {"location": "Göteborg"},
+    "createdAt": 1790000000000,
+    "descriptionPlain": "An older posting.",
+    "id": "00000000-0000-0000-0000-000000000001",
+    "text": "Old Role",
+    "workplaceType": "onsite",
+    "hostedUrl": "https://jobs.lever.co/exempel/00000000-0000-0000-0000-000000000001",
+    "applyUrl": "https://jobs.lever.co/exempel/00000000-0000-0000-0000-000000000001/apply"
+  }
+]

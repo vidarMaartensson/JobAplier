@@ -1,0 +1,75 @@
+<!doctype html>
+<!--
+  Fixture: ReachMee-ansökningsformulär (HANDSKRIVEN).
+  ReachMee kräver konto/inloggning för att nå ansökningsformuläret, så ingen publik
+  GET gav någon formulärmarkup. Strukturen nedan är skriven efter minnet av ReachMees
+  markup (formulär som postar till *.reachmee.com, fält med "applicant"-namn) och är
+  OVERIFIERAD mot verklig ReachMee. Filfälten är dolda bakom en stylad knapp.
+-->
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <title>Ansökan - Exempelkommun</title>
+  <style>
+    .rm-upload { position: relative; }
+    .rm-upload input[type=file] { position: absolute; left: -9999px; }
+  </style>
+</head>
+<body>
+  <h1>Din ansökan</h1>
+  <form id="rm-application" name="applicationform" method="post" enctype="multipart/form-data"
+        action="https://web103.reachmee.com/ext/I005/1234/main?site=5&amp;validator=abc&amp;lang=SE&amp;job_id=77">
+    <input type="hidden" name="validator" value="abc">
+
+    <p>
+      <label for="applicant_first_name">Förnamn</label>
+      <input type="text" id="applicant_first_name" name="applicant_first_name" required>
+    </p>
+    <p>
+      <label for="applicant_last_name">Efternamn</label>
+      <input type="text" id="applicant_last_name" name="applicant_last_name" required>
+    </p>
+    <p>
+      <label for="applicant_email">E-post</label>
+      <input type="text" id="applicant_email" name="applicant_email" required>
+    </p>
+    <p>
+      <label for="applicant_mobile">Mobiltelefon</label>
+      <input type="text" id="applicant_mobile" name="applicant_mobile">
+    </p>
+    <p>
+      <label for="applicant_title">Nuvarande titel *</label>
+      <input type="text" id="applicant_title" name="applicant_title" required>
+    </p>
+
+    <div class="rm-upload">
+      <span>CV</span>
+      <button type="button" class="rm-button">Bläddra...</button>
+      <input type="file" id="file_cv" name="file_cv">
+    </div>
+    <div class="rm-upload">
+      <span>Personligt brev</span>
+      <button type="button" class="rm-button">Bläddra...</button>
+      <input type="file" id="file_letter" name="file_letter">
+    </div>
+
+    <p>
+      <label>
+        <input type="checkbox" id="rm_consent" name="rm_consent" value="1" required>
+        Jag samtycker till behandling av mina personuppgifter (GDPR)
+      </label>
+    </p>
+
+    <input id="send" type="submit" value="Skicka ansökan">
+  </form>
+  <script>
+    window.__submitted = false;
+    document.getElementById("send").onclick = function () {
+      window.__submitted = true;
+    };
+    document.getElementById("rm-application").onsubmit = function () {
+      window.__submitted = true;
+    };
+  </script>
+</body>
+</html>

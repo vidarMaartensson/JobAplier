@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Jobb – JobAplier{% endblock %}
+{% block header_extra %}
+<form class="run-form" method="post" action="/run">
+  <button class="primary" type="submit">Sök nu</button>
+</form>
+{% endblock %}
+{% block content %}
+{% if flash %}<p class="flash" role="status">{{ flash }}</p>{% endif %}
+
+{% if banners.ai_message %}
+<div class="banner banner-ai" role="alert">
+  <strong>AI-gräns:</strong> {{ banners.ai_message }}
+</div>
+{% endif %}
+{% if banners.warnings %}
+<div class="banner banner-warn" role="alert">
+  <strong>Den senaste sökningen hade fel:</strong>
+  <ul>
+    {% for name, message in banners.warnings.items() %}
+    <li><strong>{{ name }}</strong>: {{ message }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<form class="filters" method="get" action="/">
+  <label>Status
+    <select name="status">
+      <option value="">Poängsatta</option>
+      {% for s in all_statuses if s.value != "scored" %}
+      <option value="{{ s.value }}"{% if s.value == status %} selected{% endif %}>{{ status_labels[s] }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Källa
+    <select name="source">
+      <option value="">Alla</option>
+      {% for s in all_sources %}
+      <option value="{{ s }}"{% if s == source %} selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="check"><input type="checkbox" name="more" value="1"{% if more %} checked{% endif %}> Visa även under tröskeln ({{ threshold }})</label>
+  <button type="submit">Filtrera</button>
+</form>
+
+{% if ongoing %}
+<section class="ongoing" aria-labelledby="ongoing-heading">
+  <h2 id="ongoing-heading">Pågående ansökningar <span class="count">{{ ongoing|length }}</span></h2>
+  <div class="job-list">
+    {% for row in ongoing %}{% include "_job_row.html" %}{% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<h1>Jobb <span class="count">{{ rows|length }}</span></h1>
+{% if rows %}
+<div class="job-list">
+  {% for row in rows %}{% include "_job_row.html" %}{% endfor %}
+</div>
+{% else %}
+<p class="empty">Inga jobb att visa. Tryck <strong>Sök nu</strong> för att hämta nya annonser.</p>
+{% endif %}
+{% endblock %}

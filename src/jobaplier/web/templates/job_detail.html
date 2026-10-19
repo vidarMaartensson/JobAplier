@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_actions.html" import actions %}
+{% block title %}{{ job.title }} – JobAplier{% endblock %}
+{% block content %}
+{% set ad_url = job.url|safe_url %}
+<p><a href="/">&larr; Jobblistan</a></p>
+<h1>{{ job.title }}</h1>
+<p class="meta">
+  {{ job.company }}{% if job.location %} · {{ job.location }}{% endif %}{% if job.remote %} · distans{% endif %}
+</p>
+<p class="meta">
+  <span class="chip">{{ status_labels[job.status] }}</span>
+  {% if job.incomplete %}<span class="chip warn">ofullständig</span>{% endif %}
+  {% if job.score is not none %}<span class="score" title="Poäng">{{ job.score }}</span>{% endif %}
+</p>
+
+{% if job.status.value == "filtered" or job.filter_reason %}
+<p class="reasons"><strong>Bortfiltrerad:</strong> {{ job.filter_reason or "okänd anledning" }}</p>
+{% endif %}
+{% if job.score_reasons %}<p class="reasons"><strong>Motivering:</strong> {{ job.score_reasons }}</p>{% endif %}
+
+<dl class="facts">
+  <dt>Ansökningsväg</dt>
+  <dd>
+    {{ method_labels[job.apply_method] }}
+    {% if job.apply_method.value == "email" and job.apply_email %} ({{ job.apply_email }}){% endif %}
+    {% if job.apply_method.value == "form" and job.apply_form_url|safe_url %}
+      – <a href="{{ job.apply_form_url|safe_url }}" target="_blank" rel="noopener noreferrer">öppna formuläret</a>
+    {% endif %}
+  </dd>
+  <dt>Källor</dt>
+  <dd>
+    {% if sources %}
+    <ul class="plain">
+      {% for s in sources %}
+      <li>
+        {% if s.url|safe_url %}<a href="{{ s.url|safe_url }}" target="_blank" rel="noopener noreferrer">{{ s.source }}</a>{% else %}{{ s.source }}{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}–{% endif %}
+  </dd>
+  {% if ad_url %}
+  <dt>Annons</dt>
+  <dd><a href="{{ ad_url }}" target="_blank" rel="noopener noreferrer">Öppna annonsen</a></dd>
+  {% endif %}
+</dl>
+
+{{ actions(job, false, job.apply_method.value in ("email", "form")) }}
+
+<h2>Annonstext</h2>
+<div class="ad">{{ job.description }}</div>
+{% endblock %}

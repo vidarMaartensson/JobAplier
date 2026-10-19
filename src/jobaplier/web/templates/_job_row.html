@@ -1,0 +1,22 @@
+{% from "_actions.html" import actions %}
+{% set job = row.job %}
+{% set ad_url = job.url|safe_url %}
+<article class="job" id="job-{{ job.id }}">
+  <div class="job-head">
+    <h2><a href="/jobs/{{ job.id }}">{{ job.title }}</a></h2>
+    {% if job.score is not none %}<span class="score" title="Poäng">{{ job.score }}</span>{% endif %}
+  </div>
+  <p class="meta">
+    {{ job.company }}{% if job.location %} · {{ job.location }}{% endif %}{% if job.remote %} · distans{% endif %}
+  </p>
+  <p class="meta">
+    {% if job.status.value != "scored" %}<span class="chip">{{ status_labels[job.status] }}</span>{% endif %}
+    {% if job.incomplete %}<span class="chip warn">ofullständig</span>{% endif %}
+    Ansökningsväg: {{ method_labels[job.apply_method] }}
+    {% if row.sources %} · Källor: {{ row.sources|join(", ") }}{% endif %}
+  </p>
+  {% if job.score_reasons %}<p class="reasons">{{ job.score_reasons }}</p>{% endif %}
+  {% if row.error %}<p class="error" role="alert">{{ row.error }}</p>{% endif %}
+  {% if ad_url %}<p class="meta"><a href="{{ ad_url }}" target="_blank" rel="noopener noreferrer">Öppna annonsen</a></p>{% endif %}
+  {{ actions(job, true, job.apply_method in auto_methods) }}
+</article>

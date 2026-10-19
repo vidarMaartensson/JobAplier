@@ -1,0 +1,30 @@
+profile:
+  name: Anna Andersson
+  email: anna@example.se
+  phone: "070-000 00 00"
+  linkedin_url: "https://www.linkedin.com/in/exempel"
+preferences:
+  roles: ["backend developer", "fullstack"]
+  keywords: ["python", "typescript"]
+  exclude_keywords: ["senior manager"]
+  exclude_companies: []
+  locations: ["Stockholm"]
+  remote_ok: true
+  seniority: ["junior", "mid"]
+sources:
+  platsbanken: { enabled: true }
+  linkedin_alerts: { enabled: true }
+  # Karriärsidor (teamtailor | greenhouse | lever), t.ex.:
+  # careers:
+  #   - { type: teamtailor, company: "Exempel AB", id: "exempel" }
+  careers: []
+scoring:
+  threshold: 60
+schedule: ["08:00", "12:00", "17:00"]
+apply:
+  dry_run: true
+  max_emails_per_day: 10
+ai:
+  backend: claude_code      # claude_code | api
+  claude_bin: claude        # sökväg till Claude Code CLI
+ai_monthly_budget_usd: 10   # gäller bara backend api

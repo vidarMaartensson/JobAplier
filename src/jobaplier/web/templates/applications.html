@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Ansökningar – JobAplier{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<h1>Ansökningar <span class="count">{{ rows|length }}</span></h1>
+{% if rows %}
+<div class="table-wrap">
+<table class="table">
+  <thead>
+    <tr><th>Datum</th><th>Jobb</th><th>Kanal</th><th>Status</th><th>Torrkörning</th><th>Kvitto / fel</th></tr>
+  </thead>
+  <tbody>
+    {% for application, job in rows %}
+    <tr>
+      <td>{{ application.submitted_at|localtime }}</td>
+      <td><a href="/jobs/{{ job.id }}">{{ job.title }}</a><br><span class="meta">{{ job.company }}</span></td>
+      <td>{{ channel_labels[application.channel] }}</td>
+      <td>{{ app_status_labels[application.status] }}</td>
+      <td>{{ "Ja" if application.dry_run else "Nej" }}</td>
+      <td>
+        {% if application.error %}<span class="error">{{ application.error }}</span>
+        {% elif application.receipt %}{{ application.receipt }}
+        {% else %}–{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="empty">Inga ansökningar ännu. Godkänn ett utkast så dyker det upp här.</p>
+{% endif %}
+{% endblock %}

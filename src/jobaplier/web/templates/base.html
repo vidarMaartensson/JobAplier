@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}JobAplier{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">JobAplier</a>
+    <nav class="nav" aria-label="Huvudmeny">
+      <a href="/">Jobb</a>
+      <a href="/applications">Ansökningar</a>
+      <a href="/runs">Körningar</a>
+      <a href="/settings">Inställningar</a>
+    </nav>
+    {% block header_extra %}{% endblock %}
+  </header>
+  <main class="{% block main_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

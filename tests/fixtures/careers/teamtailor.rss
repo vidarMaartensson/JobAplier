@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:tt="https://teamtailor.com/locations">
+  <channel>
+    <title>Exempel</title>
+    <description>Current job openings</description>
+    <link>https://exempel.teamtailor.com/jobs</link>
+    <item>
+      <title>Systemutvecklare</title>
+      <description>&lt;h4&gt;Välkommen till oss!&lt;/h4&gt;&lt;p&gt;Vi söker en &lt;strong&gt;systemutvecklare&lt;/strong&gt; &amp;amp; kollega.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Java&lt;/li&gt;&lt;li&gt;SQL&lt;/li&gt;&lt;/ul&gt;</description>
+      <pubDate>Sat, 10 Oct 2026 09:05:16 +0200</pubDate>
+      <link>https://exempel.teamtailor.com/jobs/8118064-systemutvecklare</link>
+      <remoteStatus>fully</remoteStatus>
+      <guid>4ff07fd5-3ac0-4333-8f4c-955380396321</guid>
+      <tt:locations>
+        <tt:location>
+          <tt:name>Kontoret</tt:name>
+          <tt:address>Storgatan 1</tt:address>
+          <tt:zip>111 22</tt:zip>
+          <tt:city>Stockholm</tt:city>
+          <tt:country>Sweden</tt:country>
+        </tt:location>
+      </tt:locations>
+      <tt:department>Teknik</tt:department>
+    </item>
+    <item>
+      <title>Gammal tjänst</title>
+      <description>&lt;p&gt;Publicerad för länge sedan.&lt;/p&gt;</description>
+      <pubDate>Mon, 01 Sep 2026 09:00:00 +0200</pubDate>
+      <link>https://exempel.teamtailor.com/jobs/7000000-gammal-tjanst</link>
+      <remoteStatus>none</remoteStatus>
+      <guid>aaaaaaaa-0000-0000-0000-000000000001</guid>
+    </item>
+  </channel>
+</rss>

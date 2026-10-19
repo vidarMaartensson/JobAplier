@@ -1,0 +1,50 @@
+{# Knappar för ett jobb. `htmx` = true i listan (raden byts ut), false på detaljsidan. #}
+{% macro actions(job, htmx, method_auto) %}
+{% set hx %}{% if htmx %} hx-target="#job-{{ job.id }}" hx-swap="outerHTML" hx-disabled-elt="find button"{% endif %}{% endset %}
+{% if job.status.value == "scored" %}
+<div class="actions">
+  {% if method_auto %}
+  <form method="post" action="/jobs/{{ job.id }}/apply"{% if htmx %} hx-post="/jobs/{{ job.id }}/apply"{{ hx }} hx-indicator="#busy-{{ job.id }}"{% endif %}>
+    <button class="primary" type="submit">Ansök</button>
+  </form>
+  {% endif %}
+  <form method="post" action="/jobs/{{ job.id }}/link"{% if htmx %} hx-post="/jobs/{{ job.id }}/link"{{ hx }}{% endif %}>
+    <button type="submit">Länk</button>
+  </form>
+  <form method="post" action="/jobs/{{ job.id }}/dismiss"{% if htmx %} hx-post="/jobs/{{ job.id }}/dismiss"{{ hx }}{% endif %}>
+    <button type="submit">Inte intressant</button>
+  </form>
+  <span id="busy-{{ job.id }}" class="htmx-indicator">Skriver brev …</span>
+</div>
+{% elif job.status.value == "draft_ready" %}
+<div class="actions">
+  <a class="button primary" href="/jobs/{{ job.id }}/draft">Granska utkast</a>
+  <form method="post" action="/jobs/{{ job.id }}/dismiss"{% if htmx %} hx-post="/jobs/{{ job.id }}/dismiss"{{ hx }}{% endif %}>
+    <button type="submit">Inte intressant</button>
+  </form>
+</div>
+{% elif job.status.value == "submitting" %}
+<div class="actions">
+  <a class="button primary" href="/jobs/{{ job.id }}/draft">Fortsätt</a>
+  {% if job.apply_method.value == "form" %}
+  <form method="post" action="/jobs/{{ job.id }}/mark-submitted"{% if htmx %} hx-post="/jobs/{{ job.id }}/mark-submitted"{{ hx }}{% endif %}>
+    <button type="submit">Jag har skickat</button>
+  </form>
+  {% endif %}
+</div>
+{% elif job.status.value == "failed" %}
+<div class="actions">
+  <a class="button" href="/jobs/{{ job.id }}/draft">Visa utkast</a>
+  {# Nytt försök leder till utkastet, så formuläret skickas utan HTMX. #}
+  <form method="post" action="/jobs/{{ job.id }}/retry">
+    <button class="primary" type="submit">Försök igen</button>
+  </form>
+</div>
+{% elif job.status.value == "link" %}
+<div class="actions">
+  <form method="post" action="/jobs/{{ job.id }}/mark-submitted"{% if htmx %} hx-post="/jobs/{{ job.id }}/mark-submitted"{{ hx }}{% endif %}>
+    <button type="submit">Markera som ansökt själv</button>
+  </form>
+</div>
+{% endif %}
+{% endmacro %}

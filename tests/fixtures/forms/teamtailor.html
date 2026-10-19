@@ -1,0 +1,109 @@
+<!doctype html>
+<!--
+  Fixture: Teamtailor-ansökningsformulär.
+  Markup för formuläret, fälten, uppladdningsblocket och samtyckesrutorna är hämtat
+  (utan skript, spårning, tokens och stilklasser) från en publik
+  career.teamtailor.com/jobs/<id>/applications/new. Teamtailor skapar filväljarna
+  med Dropzone i webbläsaren: en dold <input type="file" class="dz-hidden-input">
+  per uppladdningsblock läggs sist i <body> (visibility:hidden, 0x0). De dolda
+  filfälten nedan är därför handskrivna efter det beteendet; det andra
+  uppladdningsblocket (personligt brev) är också handskrivet.
+-->
+<html lang="sv-SE" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <title>Ansök: Revenue Systems Engineer</title>
+  <meta property="og:url" content="https://career.example-company.test/jobs/8546033-revenue-systems-engineer/applications/new">
+</head>
+<body>
+  <h1>Ansök till Revenue Systems Engineer</h1>
+  <form id="job-application-form" data-controller="careersite--form" data-remote="true" data-turbo-frame="application_form" novalidate="novalidate" action="https://career.example-company.test/applications" accept-charset="UTF-8" method="post">
+    <input type="hidden" name="authenticity_token" value="x" />
+    <input type="hidden" name="city" id="city" value="true" />
+    <input data-careersite--form-target="linkedinUrl" type="hidden" name="candidate[linkedin_url]" id="candidate_linkedin_url" />
+    <input data-careersite--form-target="referrer" type="hidden" name="candidate[referrer]" id="candidate_referrer" />
+
+    <div class="flex flex-col sm:flex-row">
+      <div id="id_5709288">
+        <label for="candidate_first_name">Förnamn<sup data-asterisk="true" aria-hidden="true">*</sup><span class="sr-only">Required</span></label>
+        <input autocomplete="given-name" maxlength="50" data-careersite--form-target="firstName" size="50" type="text" name="candidate[first_name]" id="candidate_first_name" />
+      </div>
+      <div id="id_5709296">
+        <label for="candidate_last_name">Efternamn<sup data-asterisk="true" aria-hidden="true">*</sup><span class="sr-only">Required</span></label>
+        <input autocomplete="family-name" maxlength="50" data-careersite--form-target="lastName" size="50" type="text" name="candidate[last_name]" id="candidate_last_name" />
+      </div>
+    </div>
+
+    <div id="id_5709304">
+      <label for="candidate_email">E-post<sup data-asterisk="true" aria-hidden="true">*</sup><span class="sr-only">Required</span></label>
+      <input autocomplete="email" data-careersite--form-target="email" data-suggest-email-correction="true" type="email" name="candidate[email]" id="candidate_email" />
+    </div>
+
+    <div id="id_5709312">
+      <label for="candidate_phone">Telefon<sup data-asterisk="true" aria-hidden="true">*</sup><span class="sr-only">Required</span></label>
+      <input autocomplete="tel" aria-label="Phone number with country code" data-controller="phone-input" data-phone-input-country-value="SE" data-careersite--form-target="phone" type="tel" name="candidate[phone]" id="candidate_phone" />
+    </div>
+
+    <div class="mb-24">
+      <div data-controller="forms--inputs--upload" data-forms--inputs--upload-accepted-files-value=".doc,.docx,.pptx,.pdf,.pages,.txt,.rtf" data-forms--inputs--upload-max-files-value="1" data-forms--inputs--upload-required-value="true" id="upload_resume_field">
+        <label for="candidate_resume_remote_url">Ladda upp CV<sup data-asterisk="true" aria-hidden="true">*</sup><span class="sr-only">Required</span></label>
+        <div class="relative w-full p-8 overflow-hidden cursor-pointer" data-forms--inputs--upload-target="trigger">
+          <div class="flex items-center justify-center h-full p-12 border-dashed rounded">
+            <span class="dz-message"><span class="dz-message-inactive">
+              <span data-forms--inputs--upload-target="desktopText">Släpp din fil eller <u>ladda upp</u></span>
+            </span></span>
+          </div>
+        </div>
+        <div data-forms--inputs--upload-target="previewsContainer" class="w-full"></div>
+      </div>
+    </div>
+
+    <div class="mb-24">
+      <div data-controller="forms--inputs--upload" data-forms--inputs--upload-accepted-files-value=".doc,.docx,.pptx,.pdf,.pages,.txt,.rtf" data-forms--inputs--upload-max-files-value="1" id="upload_cover_letter_field">
+        <label for="candidate_cover_letter_remote_url">Ladda upp personligt brev</label>
+        <div class="relative w-full p-8 overflow-hidden cursor-pointer" data-forms--inputs--upload-target="trigger">
+          <div class="flex items-center justify-center h-full p-12 border-dashed rounded">
+            <span class="dz-message"><span class="dz-message-inactive">
+              <span data-forms--inputs--upload-target="desktopText">Släpp din fil eller <u>ladda upp</u></span>
+            </span></span>
+          </div>
+        </div>
+        <div data-forms--inputs--upload-target="previewsContainer" class="w-full"></div>
+      </div>
+    </div>
+
+    <div id="id_5709400">
+      <label for="candidate_answers_attributes_0_text">Vilka är dina lönekrav?<sup data-asterisk="true" aria-hidden="true">*</sup><span class="sr-only">Required</span></label>
+      <input type="hidden" value="5638926" name="candidate[answers_attributes][0][question_id]" id="candidate_answers_attributes_0_question_id" />
+      <input rows="1" type="text" name="candidate[answers_attributes][0][text]" id="candidate_answers_attributes_0_text" />
+    </div>
+
+    <input type="hidden" value="8546033" name="candidate[job_applications_attributes][0][job_id]" id="candidate_job_applications_attributes_0_job_id" />
+
+    <div id="id_5709560">
+      <input name="candidate[consent_given]" type="hidden" value="0" /><input type="checkbox" value="1" name="candidate[consent_given]" id="candidate_consent_given" />
+      <label for="candidate_consent_given"><span class="sr-only">Required.</span><p>Genom att skicka in ansökan bekräftar jag att jag har läst <a class="privacy-policy" href="https://career.example-company.test/privacy-policy">integritetspolicyn</a> och att mina personuppgifter behandlas enligt den.</p><sup data-asterisk="true" aria-hidden="true">*</sup></label>
+    </div>
+    <div id="id_5709568">
+      <input name="candidate[consent_given_future_jobs]" type="hidden" value="0" /><input type="checkbox" value="1" name="candidate[consent_given_future_jobs]" id="candidate_consent_given_future_jobs" />
+      <label for="candidate_consent_given_future_jobs"><p>Jag samtycker till att bli kontaktad om framtida jobb.</p></label>
+    </div>
+
+    <input type="submit" name="commit" value="Skicka ansökan" id="send" data-careersite--form-target="submitButton" />
+  </form>
+
+  <!-- Dropzone.js lägger dessa sist i <body>, ett per uppladdningsblock, i samma ordning. -->
+  <input type="file" accept=".doc,.docx,.pptx,.pdf,.pages,.txt,.rtf" class="dz-hidden-input" tabindex="-1" style="visibility: hidden; position: absolute; top: 0px; left: 0px; height: 0px; width: 0px;">
+  <input type="file" accept=".doc,.docx,.pptx,.pdf,.pages,.txt,.rtf" class="dz-hidden-input" tabindex="-1" style="visibility: hidden; position: absolute; top: 0px; left: 0px; height: 0px; width: 0px;">
+
+  <script>
+    window.__submitted = false;
+    document.getElementById("send").onclick = function () {
+      window.__submitted = true;
+    };
+    document.getElementById("job-application-form").onsubmit = function () {
+      window.__submitted = true;
+    };
+  </script>
+</body>
+</html>

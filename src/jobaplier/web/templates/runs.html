@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Körningar – JobAplier{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<h1>Körningar</h1>
+
+{% if backend == "api" %}
+<p class="usage">
+  <strong>AI-kostnad denna månad:</strong>
+  {{ "%.2f"|format(spend) }} USD av {{ "%.2f"|format(budget) }} USD
+</p>
+{% else %}
+<p class="usage">
+  <strong>Körs via din Claude-prenumeration.</strong><br>
+  AI-anrop denna månad: {{ usage.calls }} · Tokens in: {{ usage.input_tokens }} · Tokens ut: {{ usage.output_tokens }}
+</p>
+{% endif %}
+
+{% if runs %}
+<div class="table-wrap">
+<table class="table">
+  <thead>
+    <tr><th>Start</th><th>Typ</th><th>Status</th><th>Resultat</th><th>Källor</th><th>Fel</th></tr>
+  </thead>
+  <tbody>
+    {% for run in runs %}
+    {% set stats = run.stats_json %}
+    <tr>
+      <td>{{ run.started_at|localtime }}</td>
+      <td>{{ trigger_labels.get(run.trigger, run.trigger) }}</td>
+      <td>{% if run.finished_at %}klar {{ run.finished_at|localtime }}{% else %}pågår{% endif %}</td>
+      <td>
+        Nya: {{ stats.get("new", 0) }} · Bortfiltrerade: {{ stats.get("filtered", 0) }}<br>
+        Poängsatta: {{ stats.get("scored", 0) }}{% if stats.get("scoring_failed") %} · Misslyckade: {{ stats.get("scoring_failed") }}{% endif %}
+        {% if backend == "api" %}<br><span class="meta">{{ "%.4f"|format(run.ai_cost_usd) }} USD</span>{% endif %}
+      </td>
+      <td>
+        {% for name, info in (stats.get("sources") or {}).items() %}
+        <div>{{ name }}: {% if info.get("ok") %}{{ info.get("count", 0) }} annonser{% else %}<span class="error">fel</span>{% endif %}</div>
+        {% else %}–{% endfor %}
+      </td>
+      <td>
+        {% for name, message in run.errors_json.items() %}
+        <div class="error"><strong>{{ name }}</strong>: {{ message }}</div>
+        {% else %}–{% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="empty">Inga körningar ännu. Tryck <strong>Sök nu</strong> på jobblistan.</p>
+{% endif %}
+{% endblock %}

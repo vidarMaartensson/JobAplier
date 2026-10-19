@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Inställningar – JobAplier{% endblock %}
+{% macro err(name) %}{% if errors.get(name) %}<span class="field-error" role="alert">{{ errors[name] }}</span>{% endif %}{% endmacro %}
+{% block content %}
+<h1>Inställningar</h1>
+{% if file_problem %}
+<div class="banner banner-ai" role="alert">
+  <strong>{{ file_problem }}</strong><br>
+  Formuläret visar standardvärden. När du sparar kopieras den gamla filen till config.yaml.bak.
+</div>
+{% endif %}
+{% if flash %}<p class="flash" role="status">{{ flash }}</p>{% endif %}
+{% if errors %}<p class="error" role="alert">Inställningarna sparades inte – rätta felen nedan.</p>{% endif %}
+{% if errors.get("_general") %}<p class="error">{{ errors["_general"] }}</p>{% endif %}
+
+<form method="post" action="/settings" class="settings">
+  <fieldset>
+    <legend>Profil</legend>
+    <label>Namn <input type="text" name="profile_name" value="{{ form.profile_name }}" required>{{ err("profile_name") }}</label>
+    <label>E-post <input type="email" name="profile_email" value="{{ form.profile_email }}" required>{{ err("profile_email") }}</label>
+    <label>Telefon <input type="text" name="profile_phone" value="{{ form.profile_phone }}">{{ err("profile_phone") }}</label>
+    <label>LinkedIn-adress <input type="text" name="profile_linkedin_url" value="{{ form.profile_linkedin_url }}">{{ err("profile_linkedin_url") }}</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Önskemål</legend>
+    <p class="meta">Skriv ett värde per rad. Värden får innehålla kommatecken.</p>
+    <label>Roller
+      <textarea name="roles" rows="3">
+{{ form.roles }}</textarea>
+      {{ err("roles") }}
+    </label>
+    <label>Nyckelord
+      <textarea name="keywords" rows="3">
+{{ form.keywords }}</textarea>
+      {{ err("keywords") }}
+    </label>
+    <label>Uteslut nyckelord
+      <textarea name="exclude_keywords" rows="3">
+{{ form.exclude_keywords }}</textarea>
+      {{ err("exclude_keywords") }}
+    </label>
+    <label>Uteslut företag
+      <textarea name="exclude_companies" rows="3">
+{{ form.exclude_companies }}</textarea>
+      {{ err("exclude_companies") }}
+    </label>
+    <label>Orter
+      <textarea name="locations" rows="3">
+{{ form.locations }}</textarea>
+      {{ err("locations") }}
+    </label>
+    <label>Erfarenhetsnivå
+      <textarea name="seniority" rows="3">
+{{ form.seniority }}</textarea>
+      {{ err("seniority") }}
+    </label>
+    <label class="check"><input type="checkbox" name="remote_ok"{% if form.remote_ok %} checked{% endif %}> Distansarbete är ok</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Källor</legend>
+    <label class="check"><input type="checkbox" name="platsbanken"{% if form.platsbanken %} checked{% endif %}> Platsbanken</label>
+    <label class="check"><input type="checkbox" name="linkedin_alerts"{% if form.linkedin_alerts %} checked{% endif %}> LinkedIn-aviseringar (Gmail)</label>
+    <label>Karriärsidor
+      <textarea name="careers" rows="5" placeholder="greenhouse,Exempel AB,exempel">
+{{ form.careers }}</textarea>
+      {{ err("careers") }}
+    </label>
+    <p class="meta">En sajt per rad: <code>typ,företag,id</code> (företaget får innehålla kommatecken). Typ är {{ career_types|join(", ") }}.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Sökning och poäng</legend>
+    <label>Poängtröskel (0–100) <input type="text" inputmode="numeric" name="threshold" value="{{ form.threshold }}">{{ err("threshold") }}</label>
+    <label>Schema (HH:MM, en tid per rad)
+      <textarea name="schedule" rows="3">
+{{ form.schedule }}</textarea>
+      {{ err("schedule") }}
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Ansökningar</legend>
+    <label class="check"><input type="checkbox" name="dry_run"{% if form.dry_run %} checked{% endif %}> Torrkörning (mejl skickas till dig själv)</label>
+    <label>Max mejl per dag <input type="text" inputmode="numeric" name="max_emails_per_day" value="{{ form.max_emails_per_day }}">{{ err("max_emails_per_day") }}</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>AI</legend>
+    <label>Backend
+      <select name="ai_backend">
+        <option value="claude_code"{% if form.ai_backend == "claude_code" %} selected{% endif %}>Claude Code (prenumeration)</option>
+        <option value="api"{% if form.ai_backend == "api" %} selected{% endif %}>Anthropic API</option>
+      </select>
+      {{ err("ai_backend") }}
+    </label>
+    <label>Sökväg till claude <input type="text" name="claude_bin" value="{{ form.claude_bin }}">{{ err("claude_bin") }}</label>
+    <label>Månadstak för API-kostnad (USD) <input type="text" inputmode="decimal" name="ai_monthly_budget_usd" value="{{ form.ai_monthly_budget_usd }}">{{ err("ai_monthly_budget_usd") }}</label>
+  </fieldset>
+
+  <button class="primary" type="submit">Spara</button>
+</form>
+{% endblock %}

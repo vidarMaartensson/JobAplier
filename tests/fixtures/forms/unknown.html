@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <title>Ansök: Utvecklare</title>
+</head>
+<body>
+  <h1>Ansök till tjänsten Utvecklare</h1>
+  <form id="application" method="get" action="">
+    <input type="hidden" name="token" value="abc123">
+
+    <label for="first">Förnamn *</label>
+    <input id="first" name="first_name" type="text" required>
+
+    <label for="last">Efternamn *</label>
+    <input id="last" name="last_name" type="text" required>
+
+    <label for="email">E-postadress *</label>
+    <input id="email" name="email" type="email" required>
+
+    <label for="phone">Telefon</label>
+    <input id="phone" name="phone" type="tel">
+
+    <label for="linkedin">LinkedIn-profil</label>
+    <input id="linkedin" name="linkedin" type="url">
+
+    <label for="cv">Bifoga CV</label>
+    <input id="cv" name="cv" type="file" accept=".pdf">
+
+    <label for="letter">Personligt brev</label>
+    <textarea id="letter" name="letter" rows="10"></textarea>
+
+    <label for="salary">Löneanspråk *</label>
+    <input id="salary" name="salary" type="text" required>
+
+    <div style="display: none">
+      <label for="website">Webbplats</label>
+      <input id="website" name="website" type="text" required>
+    </div>
+
+    <label>
+      <input id="consent" name="consent" type="checkbox" required>
+      Jag godkänner villkoren och behandlingen av mina personuppgifter
+    </label>
+
+    <button id="send" type="submit">Skicka ansökan</button>
+  </form>
+  <script>
+    window.__submitted = false;
+    document.getElementById("send").onclick = function () {
+      window.__submitted = true;
+    };
+    document.getElementById("application").onsubmit = function () {
+      window.__submitted = true;
+    };
+  </script>
+</body>
+</html>

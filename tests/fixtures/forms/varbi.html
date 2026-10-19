@@ -1,0 +1,81 @@
+<!doctype html>
+<!--
+  Fixture: Varbi-ansökningsformulär (HANDSKRIVEN).
+  Själva ansökningssidan ligger bakom inloggning (profile.varbi.com) och kunde inte
+  hämtas med en publik GET. Sidans <head>/<body>-signatur (meta csrf-param som börjar
+  på _varbi_csrf_token, body-klasserna) är kopierad från en riktig publik Varbi-annons;
+  formulärfälten är skrivna efter minnet av Varbis markup och är OVERIFIERADE mot
+  verklig Varbi. Filfälten är dolda (display:none) bakom en stylad knapp som i
+  riktiga uppladdningskomponenter.
+-->
+<html xmlns="http://www.w3.org/1999/xhtml" lang="sv">
+<head>
+  <meta charset="utf-8">
+  <title>Ansök - Utvecklare - Exempelmyndigheten</title>
+  <meta name="csrf-param" content="_varbi_csrf_token_34e56g99ff2nn">
+  <style>
+    .fileupload { position: relative; display: inline-block; }
+    .fileupload input[type=file] { display: none; }
+  </style>
+</head>
+<body class="company-page type-apply what-apply jobid-972248 lang-se">
+  <h1>Ansök till Utvecklare</h1>
+  <form id="applyform" class="varbi-form" method="post" action="/se/what:apply/jobID:972248/" enctype="multipart/form-data">
+    <input type="hidden" name="_varbi_csrf_token_34e56g99ff2nn" value="x">
+
+    <div class="form-row">
+      <label for="firstname">Förnamn *</label>
+      <input type="text" id="firstname" name="firstname" required>
+    </div>
+    <div class="form-row">
+      <label for="lastname">Efternamn *</label>
+      <input type="text" id="lastname" name="lastname" required>
+    </div>
+    <div class="form-row">
+      <label for="email">E-postadress *</label>
+      <input type="email" id="email" name="email" required>
+    </div>
+    <div class="form-row">
+      <label for="phone">Telefonnummer</label>
+      <input type="tel" id="phone" name="phone">
+    </div>
+    <div class="form-row">
+      <label for="salary">Lönevillkor *</label>
+      <input type="text" id="salary" name="salary" required>
+    </div>
+
+    <div class="form-row">
+      <span class="label">CV *</span>
+      <div class="fileupload">
+        <button type="button" class="btn">Välj fil</button>
+        <input type="file" id="attachment_cv" name="attachment_cv" accept=".pdf,.doc,.docx">
+      </div>
+    </div>
+    <div class="form-row">
+      <span class="label">Personligt brev</span>
+      <div class="fileupload">
+        <button type="button" class="btn">Välj fil</button>
+        <input type="file" id="attachment_letter" name="attachment_letter" accept=".pdf,.doc,.docx">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label>
+        <input type="checkbox" id="gdpr" name="gdpr" value="1" required>
+        Jag har tagit del av hur mina personuppgifter behandlas
+      </label>
+    </div>
+
+    <button id="send" type="submit" class="btn btn-primary">Skicka in ansökan</button>
+  </form>
+  <script>
+    window.__submitted = false;
+    document.getElementById("send").onclick = function () {
+      window.__submitted = true;
+    };
+    document.getElementById("applyform").onsubmit = function () {
+      window.__submitted = true;
+    };
+  </script>
+</body>
+</html>

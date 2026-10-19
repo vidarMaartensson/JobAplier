@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Mall för `jobaplier install-launchd`, som fyller i absoluta sökvägar. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>se.jobaplier</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${UV}</string>
+        <string>run</string>
+        <string>--project</string>
+        <string>${PROJECT_DIR}</string>
+        <string>jobaplier</string>
+        <string>serve</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>${PROJECT_DIR}</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>${PROJECT_DIR}/data/logs/jobaplier.log</string>
+    <key>StandardErrorPath</key>
+    <string>${PROJECT_DIR}/data/logs/jobaplier.err.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>${PATH}</string>
+        <key>HOME</key>
+        <string>${HOME}</string>
+    </dict>
+</dict>
+</plist>

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Installation – JobAplier{% endblock %}
+{% block content %}
+<h1>Installation</h1>
+{% if missing %}
+<p>Det här saknas innan JobAplier kan söka och skicka ansökningar:</p>
+<ul class="todo">
+  {% for item in missing %}<li>{{ item }}</li>{% endfor %}
+</ul>
+<p>Fyll i din profil och dina önskemål under <a href="/settings">Inställningar</a>.
+  Ladda om den här sidan när du har fixat resten.</p>
+{% else %}
+<p class="flash" role="status">Allt är klart.</p>
+<p><a class="button primary" href="/">Till jobblistan</a></p>
+{% endif %}
+{% endblock %}
